@@ -87,6 +87,52 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["itemId"],
         },
       },
+      {
+        name: "zotero_get_fulltext",
+        description: "Extract and return the text content from the first PDF attachment of an item",
+        inputSchema: {
+          type: "object",
+          properties: {
+            itemId: {
+              type: "string",
+              description: "The unique Zotero item ID",
+            },
+          },
+          required: ["itemId"],
+        },
+      },
+      {
+        name: "zotero_add_note",
+        description: "Add a research note to a Zotero item",
+        inputSchema: {
+          type: "object",
+          properties: {
+            itemId: {
+              type: "string",
+              description: "The parent Zotero item ID",
+            },
+            note: {
+              type: "string",
+              description: "The content of the note (HTML or plain text)",
+            },
+          },
+          required: ["itemId", "note"],
+        },
+      },
+      {
+        name: "zotero_get_citekey",
+        description: "Get the citation key (Better BibTeX) for a specific item",
+        inputSchema: {
+          type: "object",
+          properties: {
+            itemId: {
+              type: "string",
+              description: "The unique Zotero item ID",
+            },
+          },
+          required: ["itemId"],
+        },
+      },
     ],
   };
 });
@@ -153,6 +199,51 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           {
             type: "text",
             text: bibtex,
+          },
+        ],
+      };
+    }
+
+    if (name === "zotero_get_fulltext") {
+      const { itemId } = z.object({ itemId: z.string() }).parse(args);
+      if (!zoteroClient) throw new Error("Zotero client not initialized");
+
+      const text = await zoteroClient.getAttachmentText(itemId);
+      return {
+        content: [
+          {
+            type: "text",
+            text: text,
+          },
+        ],
+      };
+    }
+
+    if (name === "zotero_add_note") {
+      const { itemId, note } = z.object({ itemId: z.string(), note: z.string() }).parse(args);
+      if (!zoteroClient) throw new Error("Zotero client not initialized");
+
+      const result = await zoteroClient.addNote(itemId, note);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Note added successfully to item ${itemId}`,
+          },
+        ],
+      };
+    }
+
+    if (name === "zotero_get_citekey") {
+      const { itemId } = z.object({ itemId: z.string() }).parse(args);
+      if (!zoteroClient) throw new Error("Zotero client not initialized");
+
+      const citekey = await zoteroClient.getCiteKey(itemId);
+      return {
+        content: [
+          {
+            type: "text",
+            text: citekey,
           },
         ],
       };

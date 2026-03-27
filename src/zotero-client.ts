@@ -73,4 +73,17 @@ export class ZoteroClient {
     });
     return response.data;
   }
+
+  /**
+   * Get BibTeX for a specific item.
+   * @param itemId The unique Zotero item key.
+   */
+  async getBibTeX(itemId: string): Promise<string> {
+    const response = await this.client.get(`/users/${this.userId}/items/${itemId}`, {
+      params: {
+        format: "bibtex",
+      },
+    });
+    return response.data;
+  }
 }

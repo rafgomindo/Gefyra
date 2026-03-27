@@ -73,6 +73,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {},
         },
       },
+      {
+        name: "zotero_get_bibtex",
+        description: "Get the BibTeX citation for a specific Zotero item",
+        inputSchema: {
+          type: "object",
+          properties: {
+            itemId: {
+              type: "string",
+              description: "The unique Zotero item ID",
+            },
+          },
+          required: ["itemId"],
+        },
+      },
     ],
   };
 });
@@ -124,6 +138,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           {
             type: "text",
             text: JSON.stringify(collections, null, 2),
+          },
+        ],
+      };
+    }
+
+    if (name === "zotero_get_bibtex") {
+      const { itemId } = z.object({ itemId: z.string() }).parse(args);
+      if (!zoteroClient) throw new Error("Zotero client not initialized");
+
+      const bibtex = await zoteroClient.getBibTeX(itemId);
+      return {
+        content: [
+          {
+            type: "text",
+            text: bibtex,
           },
         ],
       };

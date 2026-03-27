@@ -1,5 +1,8 @@
 import axios, { AxiosInstance } from "axios";
 import process from "node:process";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const pdf = require("pdf-parse");
 
 export interface ZoteroItem {
   key: string;
@@ -85,5 +88,82 @@ export class ZoteroClient {
       },
     });
     return response.data;
+  }
+
+  /**
+   * Get children items for a specific item (e.g., attachments).
+   * @param itemId The unique Zotero item key.
+   */
+  async getItemChildren(itemId: string): Promise<ZoteroItem[]> {
+    const response = await this.client.get(`/users/${this.userId}/items/${itemId}/children`, {
+      params: {
+        format: "json",
+        include: "data,meta",
+      },
+    });
+    return response.data;
+  }
+
+  /**
+   * Extract text from the first PDF attachment of a Zotero item.
+   * @param itemId The unique Zotero item key.
+   */
+  async getAttachmentText(itemId: string): Promise<string> {
+    const children = await this.getItemChildren(itemId);
+    const pdfAttachment = children.find(
+      (c) => c.data.itemType === "attachment" && c.data.contentType === "application/pdf"
+    );
+
+    if (!pdfAttachment) {
+      throw new Error("No PDF attachment found for this item");
+    }
+
+    try {
+      const response = await this.client.get(`/users/${this.userId}/items/${pdfAttachment.key}/file`, {
+        responseType: "arraybuffer",
+      });
+
+      const buffer = Buffer.from(response.data);
+      const data = await pdf(buffer);
+      return data.text;
+    } catch (error: any) {
+      throw new Error(`Failed to extract PDF text: ${error.message}`);
+    }
+  }
+
+  /**
+   * Add a research note to a specific item.
+   * @param parentItemId The unique Zotero item key to attach the note to.
+   * @param noteContent The HTML/text content of the note.
+   */
+  async addNote(parentItemId: string, noteContent: string): Promise<ZoteroItem> {
+    const note = [
+      {
+        itemType: "note",
+        parentItem: parentItemId,
+        note: noteContent,
+        tags: [{ tag: "gefyra-ai" }],
+      },
+    ];
+
+    const response = await this.client.post(`/users/${this.userId}/items`, note);
+    return response.data;
+  }
+
+  /**
+   * Retrieve the citation key (Better BibTeX) or create a standard one.
+   * @param itemId The unique Zotero item key.
+   */
+  async getCiteKey(itemId: string): Promise<string> {
+    const item = await this.getItem(itemId);
+    const extraFields = item.data.extra || "";
+    const match = extraFields.match(/citationKey:\s*([^\s]+)/);
+    
+    if (match) return match[1];
+    
+    // Fallback: simple slug generator
+    const creator = item.data.creators?.[0]?.lastName || "Unknown";
+    const year = (item.data.date || "0000").substring(0, 4);
+    return `${creator}${year}`;
   }
 }

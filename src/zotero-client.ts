@@ -36,19 +36,42 @@ export class ZoteroClient {
     });
   }
 
+  private handleApiError(error: any, context: string): never {
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        let message = `Zotero API request for ${context} failed with status ${error.response.status}.`;
+        if (error.response.status === 404) {
+          message += ` This may mean the ZOTERO_USER_ID ('${this.userId}') or the specific item ID is incorrect.`;
+        } else if (error.response.status === 403 || error.response.status === 401) {
+          message += ` This may mean your ZOTERO_API_KEY is invalid or lacks permissions.`;
+        }
+        throw new Error(message);
+      } else if (error.request) {
+        throw new Error(
+          `Zotero API request for ${context} failed. No response received. Check your network connection to api.zotero.org.`
+        );
+      }
+    }
+    throw new Error(`An unexpected error occurred during ${context}: ${(error as Error).message}`);
+  }
+
   /**
    * Search for items in the user's library.
    * @param query The search query string.
    */
   async searchItems(query: string): Promise<ZoteroItem[]> {
-    const response = await this.client.get(`/users/${this.userId}/items`, {
-      params: {
-        q: query,
-        format: "json",
-        include: "data,meta",
-      },
-    });
-    return response.data;
+    try {
+      const response = await this.client.get(`/users/${this.userId}/items`, {
+        params: {
+          q: query,
+          format: "json",
+          include: "data,meta",
+        },
+      });
+      return response.data;
+    } catch (error) {
+      this.handleApiError(error, `searching for items with query '${query}'`);
+    }
   }
 
   /**
@@ -56,25 +79,33 @@ export class ZoteroClient {
    * @param itemId The unique Zotero item key.
    */
   async getItem(itemId: string): Promise<ZoteroItem> {
-    const response = await this.client.get(`/users/${this.userId}/items/${itemId}`, {
-      params: {
-        format: "json",
-        include: "data,meta",
-      },
-    });
-    return response.data;
+    try {
+      const response = await this.client.get(`/users/${this.userId}/items/${itemId}`, {
+        params: {
+          format: "json",
+          include: "data,meta",
+        },
+      });
+      return response.data;
+    } catch (error) {
+      this.handleApiError(error, `getting item '${itemId}'`);
+    }
   }
 
   /**
    * List collections in the user's library.
    */
   async listCollections() {
-    const response = await this.client.get(`/users/${this.userId}/collections`, {
-      params: {
-        format: "json",
-      },
-    });
-    return response.data;
+    try {
+      const response = await this.client.get(`/users/${this.userId}/collections`, {
+        params: {
+          format: "json",
+        },
+      });
+      return response.data;
+    } catch (error) {
+      this.handleApiError(error, "listing collections");
+    }
   }
 
   /**
@@ -82,12 +113,16 @@ export class ZoteroClient {
    * @param itemId The unique Zotero item key.
    */
   async getBibTeX(itemId: string): Promise<string> {
-    const response = await this.client.get(`/users/${this.userId}/items/${itemId}`, {
-      params: {
-        format: "bibtex",
-      },
-    });
-    return response.data;
+    try {
+      const response = await this.client.get(`/users/${this.userId}/items/${itemId}`, {
+        params: {
+          format: "bibtex",
+        },
+      });
+      return response.data;
+    } catch (error) {
+      this.handleApiError(error, `getting BibTeX for item '${itemId}'`);
+    }
   }
 
   /**
@@ -95,13 +130,17 @@ export class ZoteroClient {
    * @param itemId The unique Zotero item key.
    */
   async getItemChildren(itemId: string): Promise<ZoteroItem[]> {
-    const response = await this.client.get(`/users/${this.userId}/items/${itemId}/children`, {
-      params: {
-        format: "json",
-        include: "data,meta",
-      },
-    });
-    return response.data;
+    try {
+      const response = await this.client.get(`/users/${this.userId}/items/${itemId}/children`, {
+        params: {
+          format: "json",
+          include: "data,meta",
+        },
+      });
+      return response.data;
+    } catch (error) {
+      this.handleApiError(error, `getting children for item '${itemId}'`);
+    }
   }
 
   /**
@@ -127,7 +166,10 @@ export class ZoteroClient {
       const data = await pdf(buffer);
       return data.text;
     } catch (error: any) {
-      throw new Error(`Failed to extract PDF text: ${error.message}`);
+      if (axios.isAxiosError(error)) {
+        this.handleApiError(error, `downloading PDF attachment for item '${itemId}'`);
+      }
+      throw new Error(`Failed to extract PDF text for item '${itemId}': ${error.message}`);
     }
   }
 
@@ -146,8 +188,12 @@ export class ZoteroClient {
       },
     ];
 
-    const response = await this.client.post(`/users/${this.userId}/items`, note);
-    return response.data;
+    try {
+      const response = await this.client.post(`/users/${this.userId}/items`, note);
+      return response.data;
+    } catch (error) {
+      this.handleApiError(error, `adding a note to item '${parentItemId}'`);
+    }
   }
 
   /**

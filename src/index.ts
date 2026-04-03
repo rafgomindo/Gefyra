@@ -21,7 +21,7 @@ try {
 const server = new Server(
   {
     name: "gefyra",
-    version: "1.0.0",
+    version: "1.3.0",
   },
   {
     capabilities: {
@@ -46,6 +46,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             query: {
               type: "string",
               description: "The search query (title, author, or keywords)",
+            },
+            collectionKey: {
+              type: "string",
+              description: "Optional collection ID to filter results",
             },
           },
           required: ["query"],
@@ -146,10 +150,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     if (name === "zotero_search") {
-      const { query } = z.object({ query: z.string() }).parse(args);
+      const { query, collectionKey } = z.object({ 
+        query: z.string(),
+        collectionKey: z.string().optional(),
+      }).parse(args);
       if (!zoteroClient) throw new Error("Zotero client not initialized");
       
-      const items = await zoteroClient.searchItems(query);
+      const items = await zoteroClient.searchItems(query, collectionKey);
       return {
         content: [
           {

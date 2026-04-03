@@ -95,17 +95,22 @@ export class ZoteroClient {
   /**
    * Search for items in the library.
    * @param query The search query string.
+   * @param collectionKey Optional collection key to filter search.
    */
-  async searchItems(query: string): Promise<ZoteroItem[]> {
-    return this.request("get", `/users/${this.userId}/items`, {
-      params: {
-        q: query,
-        qmode: "everything", // Search all fields including full text if available
-        format: "json",
-        include: "data,meta",
-        limit: 50, // Avoid overwhelming the AI with too many results
-      },
-    });
+  async searchItems(query: string, collectionKey?: string): Promise<ZoteroItem[]> {
+    const params: any = {
+      q: query,
+      qmode: "everything",
+      format: "json",
+      include: "data,meta",
+      limit: 50,
+    };
+
+    if (collectionKey) {
+      return this.request("get", `/users/${this.userId}/collections/${collectionKey}/items`, { params });
+    }
+
+    return this.request("get", `/users/${this.userId}/items`, { params });
   }
 
   /**

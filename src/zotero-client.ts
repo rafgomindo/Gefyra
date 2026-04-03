@@ -102,7 +102,6 @@ export class ZoteroClient {
       q: query,
       qmode: "everything",
       format: "json",
-      include: "data,meta",
       limit: 50,
     };
 
@@ -121,7 +120,6 @@ export class ZoteroClient {
     return this.request("get", `/users/${this.userId}/items/${itemId}`, {
       params: {
         format: "json",
-        include: "data,meta",
       },
     });
   }
@@ -157,7 +155,6 @@ export class ZoteroClient {
     return this.request("get", `/users/${this.userId}/items/${itemId}/children`, {
       params: {
         format: "json",
-        include: "data,meta",
       },
     });
   }

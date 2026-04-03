@@ -1,6 +1,6 @@
 {
   "name": "gefyra",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Gefyra (Γέφυρα): A Model Context Protocol (MCP) server that bridges your Zotero research library with AI assistants, featuring Local/Cloud failover support. Created by Rafael Domingo Ramones.",
   "type": "module",
   "main": "build/index.js",

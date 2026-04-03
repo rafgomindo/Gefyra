@@ -92,7 +92,11 @@ Gefyra version **1.2.0** now prioritizes your local library for maximum speed an
 **Finding your Local URL:**
 If you have the Zotero Desktop app open, Gefyra will automatically try to reach it. 
 -   **Method A (Recommended)**: Set `ZOTERO_LOCAL_URL` to `http://localhost:23119`. This is the standard Zotero port.
--   **Note**: If you've specialized your setup with a bridge tool or proxy, use that port instead (e.g., `8080`).
+-   **Tip (Discovery)**: To confirm your port, open PowerShell/Command Prompt and run:
+    ```powershell
+    netstat -ano | findstr 23119
+    ```
+    If you see `LISTENING`, you're good to go!
 -   **Failover**: If Gefyra can't reach your local app (e.g. if it's closed), it will automatically fall back to **Zotero Cloud** using your `ZOTERO_USER_ID` and `ZOTERO_API_KEY`.
 
 ## Available Tools
@@ -101,6 +105,11 @@ If you have the Zotero Desktop app open, Gefyra will automatically try to reach 
 - **Description**: Search for items in your Zotero library.
 - **Arguments**:
   - `query` (string, required): The search text (title, author, or keyword).
+
+### `zotero_get_bibtex`
+- **Description**: Get the BibTeX citation for a specific Zotero item. This allows you to generate ready-to-use citations for your research papers directly from your AI conversation!
+- **Arguments**:
+  - `itemId` (string, required): The unique Zotero item key.
 
 ### `zotero_get_item`
 - **Description**: Get full metadata and attachments for a specific Zotero item.
@@ -114,9 +123,9 @@ If you have the Zotero Desktop app open, Gefyra will automatically try to reach 
 ## Troubleshooting
 
 If you encounter issues:
-1.  **Check 404 Errors:** This usually means your `ZOTERO_USER_ID` or the requested `itemId` is incorrect. If you're trying to use local Zotero, ensure your `ZOTERO_LOCAL_URL` points to an active bridge.
+1.  **Check 404 Errors:** This usually means your `ZOTERO_USER_ID` or the requested `itemId` is incorrect. If you're trying to use local Zotero, ensure your `ZOTERO_LOCAL_URL` points to an active port found via `netstat`.
 2.  **Verify Keys:** Ensure your `ZOTERO_API_KEY` has **Read/Write** permissions (if using Cloud).
-3.  **Local Discovery:** If you have Zotero open but get 404s, try searching with `http://localhost:23119` or `http://localhost:8080` to see which is active.
+3.  **Local Discovery:** If you have Zotero open but get 404s, double check that your `23119` port is actively `LISTENING`.
 
 ## Credits
 

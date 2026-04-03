@@ -91,8 +91,8 @@ Gefyra version **1.2.0** now prioritizes your local library for maximum speed an
 
 **Finding your Local URL:**
 If you have the Zotero Desktop app open, Gefyra will automatically try to reach it. 
--   **Method A (Standard)**: Most users with plugins like **Better BibTeX** should set `ZOTERO_LOCAL_URL` to `http://localhost:23119`.
--   **Method B (Bridge)**: If you use a dedicated [Zotero Bridge](https://github.com/mose/zotero-bridge), set it to `http://localhost:8080`.
+-   **Method A (Recommended)**: Set `ZOTERO_LOCAL_URL` to `http://localhost:23119`. This is the standard Zotero port.
+-   **Note**: If you've specialized your setup with a bridge tool or proxy, use that port instead (e.g., `8080`).
 -   **Failover**: If Gefyra can't reach your local app (e.g. if it's closed), it will automatically fall back to **Zotero Cloud** using your `ZOTERO_USER_ID` and `ZOTERO_API_KEY`.
 
 ## Available Tools

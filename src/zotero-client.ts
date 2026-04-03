@@ -18,7 +18,7 @@ export class ZoteroClient {
   private userId: string;
 
   constructor() {
-    this.userId = process.env.ZOTERO_USER_ID || "";
+    this.userId = process.env.ZOTERO_USER_ID || "7679932";
     const apiKey = process.env.ZOTERO_API_KEY;
     const localURL = process.env.ZOTERO_LOCAL_URL || "http://localhost:23119";
     const cloudURL = process.env.ZOTERO_CLOUD_URL || "https://api.zotero.org";
@@ -26,7 +26,7 @@ export class ZoteroClient {
     // Initialize Local Client
     this.localClient = axios.create({
       baseURL: localURL,
-      timeout: 2000, // Faster timeout for local
+      timeout: 3000, 
       headers: {
         "Zotero-API-Version": "3",
       },
@@ -51,11 +51,13 @@ export class ZoteroClient {
     // 1. Try Local
     if (this.localClient) {
       try {
-        console.error(`Attempting local request: ${method.toUpperCase()} ${url}`);
-        const response = await (this.localClient as any)[method](url, config);
+        // Strip out the /users/ID prefix for local Zotero calls
+        const localUrl = url.replace(new RegExp(`^/users/${this.userId}`), "");
+        console.error(`Attempting local request: ${method.toUpperCase()} ${localUrl}`);
+        const response = await (this.localClient as any)[method](localUrl, config);
         return response.data;
       } catch (error: any) {
-        console.error(`Local Zotero request failed: ${error.message}. Falling back to Cloud...`);
+        console.error(`Local Zotero request failed: ${error.message} (${url}). Falling back to Cloud...`);
       }
     }
 

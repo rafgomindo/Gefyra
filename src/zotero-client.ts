@@ -100,8 +100,10 @@ export class ZoteroClient {
     return this.request("get", `/users/${this.userId}/items`, {
       params: {
         q: query,
+        qmode: "everything", // Search all fields including full text if available
         format: "json",
         include: "data,meta",
+        limit: 50, // Avoid overwhelming the AI with too many results
       },
     });
   }

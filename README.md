@@ -85,6 +85,16 @@ Update your `mcp_config.json` with the correct path and environment variables:
 }
 ```
 
+### Local vs. Cloud - How to Choose?
+
+Gefyra version **1.2.0** now prioritizes your local library for maximum speed and privacy.
+
+**Finding your Local URL:**
+If you have the Zotero Desktop app open, Gefyra will automatically try to reach it. 
+-   **Method A (Standard)**: Most users with plugins like **Better BibTeX** should set `ZOTERO_LOCAL_URL` to `http://localhost:23119`.
+-   **Method B (Bridge)**: If you use a dedicated [Zotero Bridge](https://github.com/mose/zotero-bridge), set it to `http://localhost:8080`.
+-   **Failover**: If Gefyra can't reach your local app (e.g. if it's closed), it will automatically fall back to **Zotero Cloud** using your `ZOTERO_USER_ID` and `ZOTERO_API_KEY`.
+
 ## Available Tools
 
 ### `zotero_search`
@@ -104,9 +114,9 @@ Update your `mcp_config.json` with the correct path and environment variables:
 ## Troubleshooting
 
 If you encounter issues:
-1.  **Check 404 Errors:** This usually means your `ZOTERO_USER_ID` or the requested `itemId` is incorrect. If you're trying to use local Zotero, ensure your `ZOTERO_BASE_URL` points to an active bridge (like `http://localhost:23119`).
-2.  **Verify Keys:** Ensure your `ZOTERO_API_KEY` has the necessary permissions (Read/Write) if using the online library.
-3.  **Local Zotero:** If you have Zotero open but get 404s, double-check that you aren't accidentally hitting the cloud library with a dummy ID.
+1.  **Check 404 Errors:** This usually means your `ZOTERO_USER_ID` or the requested `itemId` is incorrect. If you're trying to use local Zotero, ensure your `ZOTERO_LOCAL_URL` points to an active bridge.
+2.  **Verify Keys:** Ensure your `ZOTERO_API_KEY` has **Read/Write** permissions (if using Cloud).
+3.  **Local Discovery:** If you have Zotero open but get 404s, try searching with `http://localhost:23119` or `http://localhost:8080` to see which is active.
 
 ## Credits
 

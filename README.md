@@ -94,7 +94,7 @@ If you have the Zotero Desktop app open, Gefyra will automatically try to reach 
 -   **Method A (Recommended)**: Set `ZOTERO_LOCAL_URL` to `http://localhost:23119`. This is the standard Zotero port.
 -   **Tip (Discovery)**: To confirm your port, open PowerShell/Command Prompt and run:
     ```powershell
-    netstat -ano | findstr 23119
+   wh
     ```
     If you see `LISTENING`, you're good to go!
 -   **Failover**: If Gefyra can't reach your local app (e.g. if it's closed), it will automatically fall back to **Zotero Cloud** using your `ZOTERO_USER_ID` and `ZOTERO_API_KEY`.

@@ -50,43 +50,45 @@ Before running `gefyra`, you must set the `ZOTERO_USER_ID` and `ZOTERO_API_KEY` 
 
 **Windows (Command Prompt):**
 ```bash
+Before running `gefyra`, you must set the `ZOTERO_USER_ID` and `ZOTERO_API_KEY` environment variables. If you want to use a local Zotero library (e.g., via a bridge or plugin), you can also set `ZOTERO_BASE_URL`.
+
+**Default Cloud (Zotero.org):**
+- `ZOTERO_USER_ID`: Your Zotero user ID.
+- `ZOTERO_API_KEY`: Your Zotero API key.
+- `ZOTERO_BASE_URL`: `https://api.zotero.org` (default).
+
+**Local Bridge (e.g., Better BibTeX or Bridge plugin):**
+- `ZOTERO_USER_ID`: Usually any string if using a local bridge, or your ID.
+- `ZOTERO_API_KEY`: Optional/Not needed depending on your local bridge security.
+- `ZOTERO_BASE_URL`: Your local address (e.g., `http://localhost:8080` or `http://localhost:23119`).
+
+**Windows (Command Prompt):**
+```bash
 set ZOTERO_USER_ID=your_user_id
 set ZOTERO_API_KEY=your_api_key
+set ZOTERO_BASE_URL=https://api.zotero.org
 ```
 
 **Windows (PowerShell):**
 ```powershell
 $env:ZOTERO_USER_ID="your_user_id"
 $env:ZOTERO_API_KEY="your_api_key"
+$env:ZOTERO_BASE_URL="https://api.zotero.org"
 ```
-
-**Linux / macOS:**
-```bash
-export ZOTERO_USER_ID=your_user_id
-export ZOTERO_API_KEY=your_api_key
-```
-
-Replace `your_user_id` and `your_api_key` with your actual credentials.
 
 ### Step 3: Integrate with an AI Assistant (e.g., Gemini CLI)
 
-Since `Gefyra` is an MCP server, it can be integrated with any AI assistant that supports the Model Context Protocol. You would typically configure your AI assistant to use `gefyra` as a tool.
-
-Here's a hypothetical example of how you might configure it (actual configuration will depend on your AI assistant's tooling):
+Update your `mcp_config.json` with the correct path and environment variables:
 
 ```json
-{
-  "tools": [
-    {
-      "name": "gefyra",
-      "command": "node C:/Users/sdjrp/Documents/inventos/Gefyra/build/index.js",
-      "protocol": "mcp",
-      "env": {
-        "ZOTERO_USER_ID": "YOUR_USER_ID",
-        "ZOTERO_API_KEY": "YOUR_API_KEY"
-      }
-    }
-  ]
+"gefyra": {
+  "command": "node",
+  "args": ["c:/Users/sdjrp/Documents/inventos/Gefyra/build/index.js"],
+  "env": {
+    "ZOTERO_USER_ID": "YOUR_USER_ID",
+    "ZOTERO_API_KEY": "YOUR_API_KEY",
+    "ZOTERO_BASE_URL": "https://api.zotero.org"
+  }
 }
 ```
 
@@ -108,7 +110,10 @@ Here's a hypothetical example of how you might configure it (actual configuratio
 
 ## Troubleshooting
 
-If you encounter issues, especially with API calls, `Gefyra` now provides more detailed error messages. These messages will guide you in troubleshooting common problems such as incorrect `ZOTERO_USER_ID`, invalid `ZOTERO_API_KEY`, or network connectivity issues to `api.zotero.org`.
+If you encounter issues:
+1.  **Check 404 Errors:** This usually means your `ZOTERO_USER_ID` or the requested `itemId` is incorrect. If you're trying to use local Zotero, ensure your `ZOTERO_BASE_URL` points to an active bridge (like `http://localhost:8080`).
+2.  **Verify Keys:** Ensure your `ZOTERO_API_KEY` has the necessary permissions (Read/Write) if using the online library.
+3.  **Local Zotero:** If you have Zotero open but get 404s, double-check that you aren't accidentally hitting the cloud library with a dummy ID.
 
 ## "Antigravity" IDE Note
 

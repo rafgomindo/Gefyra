@@ -13,69 +13,95 @@ export interface ZoteroItem {
 }
 
 export class ZoteroClient {
-  private client: AxiosInstance;
+  private localClient: AxiosInstance | null = null;
+  private cloudClient: AxiosInstance | null = null;
   private userId: string;
 
   constructor() {
-    const userId = process.env.ZOTERO_USER_ID;
+    this.userId = process.env.ZOTERO_USER_ID || "";
     const apiKey = process.env.ZOTERO_API_KEY;
-    const baseURL = process.env.ZOTERO_BASE_URL || "https://api.zotero.org";
+    const localURL = process.env.ZOTERO_LOCAL_URL || "http://localhost:8080";
+    const cloudURL = process.env.ZOTERO_CLOUD_URL || "https://api.zotero.org";
 
-    if (!userId) {
-      throw new Error("ZOTERO_USER_ID environment variable is not set");
-    }
-    
-    // API Key is required for api.zotero.org, but might not be for local proxies
-    if (baseURL.includes("zotero.org") && !apiKey) {
-      throw new Error("ZOTERO_API_KEY environment variable is not set when using the online library.");
-    }
-
-    this.userId = userId;
-    this.client = axios.create({
-      baseURL: baseURL,
+    // Initialize Local Client
+    this.localClient = axios.create({
+      baseURL: localURL,
+      timeout: 2000, // Faster timeout for local
       headers: {
-        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
         "Zotero-API-Version": "3",
       },
     });
+
+    // Initialize Cloud Client if credentials exist
+    if (this.userId && apiKey) {
+      this.cloudClient = axios.create({
+        baseURL: cloudURL,
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Zotero-API-Version": "3",
+        },
+      });
+    }
+  }
+
+  /**
+   * Helper that attempts a request on the Local library first, then falls back to Cloud.
+   */
+  private async request(method: "get" | "post", url: string, config: any = {}): Promise<any> {
+    // 1. Try Local
+    if (this.localClient) {
+      try {
+        console.error(`Attempting local request: ${method.toUpperCase()} ${url}`);
+        const response = await (this.localClient as any)[method](url, config);
+        return response.data;
+      } catch (error: any) {
+        console.error(`Local Zotero request failed: ${error.message}. Falling back to Cloud...`);
+      }
+    }
+
+    // 2. Try Cloud
+    if (this.cloudClient) {
+      try {
+        console.error(`Attempting cloud request: ${method.toUpperCase()} ${url}`);
+        const response = await (this.cloudClient as any)[method](url, config);
+        return response.data;
+      } catch (error: any) {
+        this.handleApiError(error, `Cloud request to ${url}`);
+      }
+    }
+
+    throw new Error("No Zotero library available (Local and Cloud both failed or are not configured).");
   }
 
   private handleApiError(error: any, context: string): never {
     if (axios.isAxiosError(error)) {
       if (error.response) {
-        let message = `Zotero API request for ${context} failed with status ${error.response.status}.`;
+        let message = `Cloud Zotero API request for ${context} failed with status ${error.response.status}.`;
         if (error.response.status === 404) {
-          message += ` This may mean the ZOTERO_USER_ID ('${this.userId}') or the specific item ID is incorrect. Check that your user ID and API URLs are correct.`;
+          message += ` Check your User ID ('${this.userId}') or Item ID.`;
         } else if (error.response.status === 403 || error.response.status === 401) {
-          message += ` This may mean your ZOTERO_API_KEY is invalid or lacks permissions.`;
+          message += ` Check your API Key permissions.`;
         }
         throw new Error(message);
       } else if (error.request) {
-        throw new Error(
-          `Zotero API request for ${context} failed. No response received. Check your network or if Zotero Desktop is running.`
-        );
+        throw new Error(`Cloud Zotero API request for ${context} failed. No response received.`);
       }
     }
-    throw new Error(`An unexpected error occurred during ${context}: ${(error as Error).message}`);
+    throw new Error(`Unexpected error during ${context}: ${(error as Error).message}`);
   }
 
   /**
-   * Search for items in the user's library.
+   * Search for items in the library.
    * @param query The search query string.
    */
   async searchItems(query: string): Promise<ZoteroItem[]> {
-    try {
-      const response = await this.client.get(`/users/${this.userId}/items`, {
-        params: {
-          q: query,
-          format: "json",
-          include: "data,meta",
-        },
-      });
-      return response.data;
-    } catch (error) {
-      this.handleApiError(error, `searching for items with query '${query}'`);
-    }
+    return this.request("get", `/users/${this.userId}/items`, {
+      params: {
+        q: query,
+        format: "json",
+        include: "data,meta",
+      },
+    });
   }
 
   /**
@@ -83,33 +109,23 @@ export class ZoteroClient {
    * @param itemId The unique Zotero item key.
    */
   async getItem(itemId: string): Promise<ZoteroItem> {
-    try {
-      const response = await this.client.get(`/users/${this.userId}/items/${itemId}`, {
-        params: {
-          format: "json",
-          include: "data,meta",
-        },
-      });
-      return response.data;
-    } catch (error) {
-      this.handleApiError(error, `getting item '${itemId}'`);
-    }
+    return this.request("get", `/users/${this.userId}/items/${itemId}`, {
+      params: {
+        format: "json",
+        include: "data,meta",
+      },
+    });
   }
 
   /**
-   * List collections in the user's library.
+   * List collections in the library.
    */
   async listCollections() {
-    try {
-      const response = await this.client.get(`/users/${this.userId}/collections`, {
-        params: {
-          format: "json",
-        },
-      });
-      return response.data;
-    } catch (error) {
-      this.handleApiError(error, "listing collections");
-    }
+    return this.request("get", `/users/${this.userId}/collections`, {
+      params: {
+        format: "json",
+      },
+    });
   }
 
   /**
@@ -117,16 +133,11 @@ export class ZoteroClient {
    * @param itemId The unique Zotero item key.
    */
   async getBibTeX(itemId: string): Promise<string> {
-    try {
-      const response = await this.client.get(`/users/${this.userId}/items/${itemId}`, {
-        params: {
-          format: "bibtex",
-        },
-      });
-      return response.data;
-    } catch (error) {
-      this.handleApiError(error, `getting BibTeX for item '${itemId}'`);
-    }
+    return this.request("get", `/users/${this.userId}/items/${itemId}`, {
+      params: {
+        format: "bibtex",
+      },
+    });
   }
 
   /**
@@ -134,17 +145,12 @@ export class ZoteroClient {
    * @param itemId The unique Zotero item key.
    */
   async getItemChildren(itemId: string): Promise<ZoteroItem[]> {
-    try {
-      const response = await this.client.get(`/users/${this.userId}/items/${itemId}/children`, {
-        params: {
-          format: "json",
-          include: "data,meta",
-        },
-      });
-      return response.data;
-    } catch (error) {
-      this.handleApiError(error, `getting children for item '${itemId}'`);
-    }
+    return this.request("get", `/users/${this.userId}/items/${itemId}/children`, {
+      params: {
+        format: "json",
+        include: "data,meta",
+      },
+    });
   }
 
   /**
@@ -162,19 +168,40 @@ export class ZoteroClient {
         throw new Error("No PDF attachment found for this item");
       }
 
-      const response = await this.client.get(`/users/${this.userId}/items/${pdfAttachment.key}/file`, {
-        responseType: "arraybuffer",
-      });
-
-      const buffer = Buffer.from(response.data);
+      // Download file - use request handler for failover
+      const response = await this.client_for_file_download(pdfAttachment.key);
+      const buffer = Buffer.from(response);
       const data = await pdf(buffer);
       return data.text;
     } catch (error: any) {
-      if (axios.isAxiosError(error)) {
-        this.handleApiError(error, `downloading PDF attachment for item '${itemId}'`);
-      }
       throw new Error(`Failed to extract PDF text for item '${itemId}': ${error.message}`);
     }
+  }
+
+  /**
+   * Specialized request for file downloads (binary data).
+   */
+  private async client_for_file_download(itemKey: string): Promise<any> {
+    const url = `/users/${this.userId}/items/${itemKey}/file`;
+    const config: any = { responseType: "arraybuffer" };
+
+    // Try Local
+    if (this.localClient) {
+      try {
+        const response = await this.localClient.get(url, config);
+        return response.data;
+      } catch (error) {
+        console.error("Local PDF download failed. Trying cloud...");
+      }
+    }
+
+    // Try Cloud
+    if (this.cloudClient) {
+      const response = await this.cloudClient.get(url, config);
+      return response.data;
+    }
+
+    throw new Error("No client available for file download.");
   }
 
   /**
@@ -192,12 +219,7 @@ export class ZoteroClient {
       },
     ];
 
-    try {
-      const response = await this.client.post(`/users/${this.userId}/items`, note);
-      return response.data;
-    } catch (error) {
-      this.handleApiError(error, `adding a note to item '${parentItemId}'`);
-    }
+    return this.request("post", `/users/${this.userId}/items`, note);
   }
 
   /**
@@ -216,8 +238,8 @@ export class ZoteroClient {
       const creator = item.data.creators?.[0]?.lastName || "Unknown";
       const year = (item.data.date || "0000").substring(0, 4);
       return `${creator}${year}`;
-    } catch (error) {
-      this.handleApiError(error, `getting citation key for item '${itemId}'`);
+    } catch (error: any) {
+      throw new Error(`Getting citation key failed: ${error.message}`);
     }
   }
 }

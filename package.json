@@ -1,7 +1,7 @@
 {
   "name": "gefyra",
-  "version": "1.0.0",
-  "description": "Gefyra (Γέφυρα): A Model Context Protocol (MCP) server that bridges your Zotero research library with AI assistants that use integrated development environments (IDE), enabling seamless searching, metadata retrieval, and citation management.",
+  "version": "1.1.0",
+  "description": "Gefyra (Γέφυρα): A Model Context Protocol (MCP) server that bridges your Zotero research library with AI assistants that use integrated development environments (IDE). Created by Rafael Domingo Ramones.",
   "type": "module",
   "main": "build/index.js",
   "bin": {
@@ -18,7 +18,7 @@
     "research",
     "antigravity"
   ],
-  "author": "",
+  "author": "Rafael Domingo Ramones",
   "license": "ISC",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.28.0",

@@ -1,6 +1,8 @@
-# Gefyra (Γέφυρα) 🌉
+# Gefyra (Γέφυρα) - v1.1.0 (Hermes) 🌉
 
-**Gefyra (Γέφυρα):** A Model Context Protocol (MCP) server that bridges your Zotero research library with AI assistants that use integrated development environments (IDE), enabling seamless searching, metadata retrieval, and citation management.
+**Gefyra (Γέφυρα):** A Model Context Protocol (MCP) server that bridges your Zotero research library with AI assistants that use integrated development environments (IDE). 
+
+Created by **Rafael Domingo Ramones**. 🌉
 
 The name "Gefyra" (Greek: Γέφυρα) represents the bridge between your academic research and your intelligent workspace.
 
@@ -41,26 +43,17 @@ The name "Gefyra" (Greek: Γέφυρα) represents the bridge between your acade
 
 ### Step 1: Get Your Zotero Credentials
 
-1.  **User ID:** You can find your user ID in your Zotero settings, under [Feeds/API](https://www.zotero.org/settings/keys).
-2.  **API Key:** You can create a new API key in the same section of your [Zotero settings](https://www.zotero.org/settings/keys).
+1.  **Log in to Zotero**: Go to [zotero.org/settings/keys](https://www.zotero.org/settings/keys).
+2.  **Take note of your User ID**: At the top of that page, you will see: *"Your userID for use in API calls is **XXXXXXX**"*. **Save this number**—it is a 7-digit numeric ID, not your username.
+3.  **Create a New Private Key**: 
+    *   Click **"Create new private key"**.
+    *   Provide a description (e.g., "Gefyra MCP Server").
+    *   **Important**: Ensure the **"Allow library access"** checkbox is selected.
+    *   Click **"Save Key"** and **immediately copy the key string**. You will not be able to see it again once you leave the page.
 
 ### Step 2: Set Environment Variables
 
 Before running `gefyra`, you must set the `ZOTERO_USER_ID` and `ZOTERO_API_KEY` environment variables.
-
-**Windows (Command Prompt):**
-```bash
-Before running `gefyra`, you must set the `ZOTERO_USER_ID` and `ZOTERO_API_KEY` environment variables. If you want to use a local Zotero library (e.g., via a bridge or plugin), you can also set `ZOTERO_BASE_URL`.
-
-**Default Cloud (Zotero.org):**
-- `ZOTERO_USER_ID`: Your Zotero user ID.
-- `ZOTERO_API_KEY`: Your Zotero API key.
-- `ZOTERO_BASE_URL`: `https://api.zotero.org` (default).
-
-**Local Bridge (e.g., Better BibTeX or Bridge plugin):**
-- `ZOTERO_USER_ID`: Usually any string if using a local bridge, or your ID.
-- `ZOTERO_API_KEY`: Optional/Not needed depending on your local bridge security.
-- `ZOTERO_BASE_URL`: Your local address (e.g., `http://localhost:8080` or `http://localhost:23119`).
 
 **Windows (Command Prompt):**
 ```bash
@@ -111,13 +104,13 @@ Update your `mcp_config.json` with the correct path and environment variables:
 ## Troubleshooting
 
 If you encounter issues:
-1.  **Check 404 Errors:** This usually means your `ZOTERO_USER_ID` or the requested `itemId` is incorrect. If you're trying to use local Zotero, ensure your `ZOTERO_BASE_URL` points to an active bridge (like `http://localhost:8080`).
+1.  **Check 404 Errors:** This usually means your `ZOTERO_USER_ID` or the requested `itemId` is incorrect. If you're trying to use local Zotero, ensure your `ZOTERO_BASE_URL` points to an active bridge (like `http://localhost:23119`).
 2.  **Verify Keys:** Ensure your `ZOTERO_API_KEY` has the necessary permissions (Read/Write) if using the online library.
 3.  **Local Zotero:** If you have Zotero open but get 404s, double-check that you aren't accidentally hitting the cloud library with a dummy ID.
 
-## "Antigravity" IDE Note
+## Credits
 
-The term "Antigravity" as a Google IDE is not officially recognized. `Gefyra` is designed to be IDE-agnostic and relies on the Model Context Protocol (MCP) for communication, allowing integration with any MCP-compatible client or environment.
+Created by **Rafael Domingo Ramones**. 🌉
 
 ## License
 ISC

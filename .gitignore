@@ -1,0 +1,10 @@
+node_modules
+build
+*.log
+*.json
+*.jsonl
+*.sqlite
+.env
+.tmp
+coverage
+dist

@@ -2,9 +2,12 @@
 
 ![Academic](https://img.shields.io/badge/Academic-Zotero-red?style=for-the-badge) ![AI](https://img.shields.io/badge/AI-Agentic--Bridge-blue?style=for-the-badge) ![Version](https://img.shields.io/badge/Version-3.0.0--Architect-gold?style=for-the-badge)
 
-**Do you want your AI or your IDE (Gemini, Claude, ChatGPT, Cursor, Windsurf) to be able to interact with your Zotero library, be it local or cloud? Just install Gefyra and it will!** 🚀
+### 🏷️ **Project Tags**
+`#TalkToZotero` `#TalkToYourLibrary` `#IA` `#Zotero` `#IABridge` `#Gefyra` `#ResearchAutomation`
 
-**Gefyra (Γέφυρα):** The definitive and indestructible bridge between **Zotero** research libraries and the world's most advanced **AI Agents**. Built specifically for high-level **Doctoral Research** and high-integrity academic data workflows.
+**"Do you want your IA or your IDE (Gemini, Claude, ChatGPT, Cursor, Windsurf) to be able to interact with your Zotero library, be it local or cloud? Just install Gefyra and it will!"** 🚀
+
+**Gefyra (Γέφυρα):** The definitive and indestructible **Bridge between IA and Zotero**. Built specifically for high-level **Doctoral Research** and high-integrity academic data workflows.
 
 ---
 
@@ -36,7 +39,7 @@ Gefyra works as an **MCP Server** (Model Context Protocol). Add it to your AI co
 
 ---
 
-## 🤖 The Universal AI-Agentic Bridge
+## 🤖 The Universal IA-Agentic Bridge
 Gefyra provides a seamless interface for all major Large Language Models:
 *   **Gemini (Antigravity/CLI)**: Full native integration. 🚀
 *   **Claude (Desktop/Dev)**: High-speed metadata retrieval.

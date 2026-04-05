@@ -19,7 +19,7 @@ To use the full power of Gefyra's citation and searching capabilities, you MUST 
 
 ### 2. Get Your Credentials
 You need two pieces of information from your Zotero account:
-*   **User ID**: Found at the top of your [Zotero API Settings](https://www.zotero.org/settings/keys). (It is a numeric ID, e.g., `7679932`).
+*   **User ID**: Found at the top of your [Zotero API Settings](https://www.zotero.org/settings/keys). (It is a numeric ID, e.g., `1234567`).
 *   **API Key**: Create a new private key at [zotero.org/settings/keys](https://www.zotero.org/settings/keys). Make sure to check **"Allow library access"**. 🔑
 
 ### 3. Setup

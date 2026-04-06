@@ -254,6 +254,68 @@ export class ZoteroClient {
   }
 
   /**
+   * List all tags in the library.
+   */
+  async listTags() {
+    return this.request("get", `/users/${this.userId}/tags`, {
+      params: {
+        format: "json",
+      },
+    });
+  }
+
+  /**
+   * Get hierarchical collection tree.
+   */
+  async getCollectionTree() {
+    const collections = await this.listCollections();
+    const tree: any[] = [];
+    const lookup: any = {};
+
+    collections.forEach((c: any) => {
+      lookup[c.key] = { ...c, children: [] };
+    });
+
+    collections.forEach((c: any) => {
+      if (c.data.parentCollection && lookup[c.data.parentCollection]) {
+        lookup[c.data.parentCollection].children.push(lookup[c.key]);
+      } else {
+        tree.push(lookup[c.key]);
+      }
+    });
+
+    return tree;
+  }
+
+  /**
+   * Get high-level library statistics.
+   */
+  async getLibraryStats() {
+    const results: any = {
+      items: 0,
+      collections: 0,
+      tags: 0,
+      trash: 0
+    };
+
+    try {
+      const items = await this.request("get", `/users/${this.userId}/items`, { params: { limit: 1 } });
+      results.items = items.length > 0 ? parseInt(items[0].version) : 0; 
+    } catch (e) {}
+
+    const collections = await this.listCollections();
+    results.collections = collections.length;
+
+    const tags = await this.listTags();
+    results.tags = tags.length;
+
+    const trash = await this.fetchTrashItems();
+    results.trash = trash.length;
+
+    return results;
+  }
+
+  /**
    * Get BibTeX for a specific item.
    * @param itemId The unique Zotero item key.
    */

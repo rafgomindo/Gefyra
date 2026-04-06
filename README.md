@@ -1,9 +1,9 @@
-# Gefyra (Γέφυρα) - v3.0.0 (The Architect Edition) 🌉🦾🔩
+# Gefyra (Γέφυρα) - v3.1.0 (The Librarian Edition) 🌉📚🦾🔩
 
-![Academic](https://img.shields.io/badge/Academic-Zotero-red?style=for-the-badge) ![AI](https://img.shields.io/badge/AI-Agentic--Bridge-blue?style=for-the-badge) ![Version](https://img.shields.io/badge/Version-3.0.0--Architect-gold?style=for-the-badge)
+![Academic](https://img.shields.io/badge/Academic-Zotero-red?style=for-the-badge) ![AI](https://img.shields.io/badge/AI-Agentic--Bridge-blue?style=for-the-badge) ![Version](https://img.shields.io/badge/Version-3.1.0--Librarian-emerald?style=for-the-badge)
 
 ### 🏷️ **Project Tags**
-`#TalkToZotero` `#TalkToYourLibrary` `#IA` `#Zotero` `#IABridge` `#Gefyra` `#ResearchAutomation`
+`#TalkToZotero` `#TalkToYourLibrary` `#IA` `#Zotero` `#IABridge` `#Gefyra` `#ResearchAutomation` `#LibraryDiagnostics`
 
 **"Do you want your IA or your IDE (Gemini, Claude, ChatGPT, Cursor, Windsurf) to be able to interact with your Zotero library, be it local or cloud? Just install Gefyra and it will!"** 🚀
 

@@ -24,7 +24,7 @@ try {
 const server = new Server(
   {
     name: "gefyra",
-    version: "2.1.4-FINAL-REV5",
+    version: "3.1.0",
   },
   {
     capabilities: {

@@ -273,6 +273,30 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["itemId", "tags"],
         },
       },
+      {
+        name: "zotero_list_tags",
+        description: "List all tags in your Zotero library",
+        inputSchema: {
+          type: "object",
+          properties: {},
+        },
+      },
+      {
+        name: "zotero_get_collection_tree",
+        description: "Get a hierarchical tree of all collections",
+        inputSchema: {
+          type: "object",
+          properties: {},
+        },
+      },
+      {
+        name: "zotero_get_library_stats",
+        description: "Get high-level statistics of your Zotero library",
+        inputSchema: {
+          type: "object",
+          properties: {},
+        },
+      },
     ],
   };
 });
@@ -471,6 +495,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       await zoteroClient.addTags(itemId, tags);
       return {
         content: [{ type: "text", text: `Tags added successfully to item ${itemId}.` }],
+      };
+    }
+
+    if (name === "zotero_list_tags") {
+      if (!zoteroClient) throw new Error("Zotero client not initialized");
+      const tags = await zoteroClient.listTags();
+      return {
+        content: [{ type: "text", text: JSON.stringify(tags, null, 2) }],
+      };
+    }
+
+    if (name === "zotero_get_collection_tree") {
+      if (!zoteroClient) throw new Error("Zotero client not initialized");
+      const tree = await zoteroClient.getCollectionTree();
+      return {
+        content: [{ type: "text", text: JSON.stringify(tree, null, 2) }],
+      };
+    }
+
+    if (name === "zotero_get_library_stats") {
+      if (!zoteroClient) throw new Error("Zotero client not initialized");
+      const stats = await zoteroClient.getLibraryStats();
+      return {
+        content: [{ type: "text", text: JSON.stringify(stats, null, 2) }],
       };
     }
 

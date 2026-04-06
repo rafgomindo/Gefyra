@@ -1,6 +1,6 @@
 {
   "name": "gefyra",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "Gefyra (Γέφυρα) - The definitive IA-Agentic Bridge between Zotero and Large Language Models",
   "main": "build/index.js",
   "type": "module",

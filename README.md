@@ -1,6 +1,6 @@
-# Gefyra (Γέφυρα) - v3.1.0 (The Librarian Edition) 🌉📚🦾🔩
+# Gefyra (Γέφυρα) - v3.2.0 (The Librarian Edition) 🌉📚🦾🔩
 
-![Academic](https://img.shields.io/badge/Academic-Zotero-red?style=for-the-badge) ![AI](https://img.shields.io/badge/AI-Agentic--Bridge-blue?style=for-the-badge) ![Version](https://img.shields.io/badge/Version-3.1.0--Librarian-emerald?style=for-the-badge)
+![Academic](https://img.shields.io/badge/Academic-Zotero-red?style=for-the-badge) ![AI](https://img.shields.io/badge/AI-Agentic--Bridge-blue?style=for-the-badge) ![Version](https://img.shields.io/badge/Version-3.2.0--Librarian-emerald?style=for-the-badge)
 
 ### 🏷️ **Project Tags**
 `#TalkToZotero` `#TalkToYourLibrary` `#IA` `#Zotero` `#IABridge` `#Gefyra` `#ResearchAutomation` `#LibraryDiagnostics`
@@ -38,7 +38,7 @@ Gefyra works as an **MCP Server** (Model Context Protocol). Add it to your AI co
 
 ---
 
-## 🚀 The Librarian Toolset (v3.1.0)
+## 🚀 The Librarian Toolset (v3.2.0)
 
 Gefyra now exposes powerful atomic tools directly to your AI agent:
 

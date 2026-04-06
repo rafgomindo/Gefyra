@@ -297,6 +297,70 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {},
         },
       },
+      {
+        name: "zotero_upload_file",
+        description: "Upload a local file and attach it to a Zotero item",
+        inputSchema: {
+          type: "object",
+          properties: {
+            parentKey: {
+              type: "string",
+              description: "The unique Zotero parent item ID",
+            },
+            filePath: {
+              type: "string",
+              description: "The absolute path to the local file to upload",
+            },
+            filename: {
+              type: "string",
+              description: "Optional filename for the attachment",
+            },
+          },
+          required: ["parentKey", "filePath"],
+        },
+      },
+      {
+        name: "zotero_fuse_items",
+        description: "Fuse multiple items into one (merge duplicates)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            survivorKey: {
+              type: "string",
+              description: "The key of the master item to keep",
+            },
+            extraKeys: {
+              type: "array",
+              items: { type: "string" },
+              description: "Array of child items to merge/trash",
+            },
+          },
+          required: ["survivorKey", "extraKeys"],
+        },
+      },
+      {
+        name: "zotero_associate_items",
+        description: "Associate two items (reparent or link)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            itemA: {
+              type: "string",
+              description: "The primary item key",
+            },
+            itemB: {
+              type: "string",
+              description: "The secondary item key",
+            },
+            type: {
+              type: "string",
+              enum: ["reparent", "link"],
+              description: "Associate type: 'reparent' (B becomes child of A) or 'link' (related)",
+            },
+          },
+          required: ["itemA", "itemB", "type"],
+        },
+      },
     ],
   };
 });
@@ -519,6 +583,47 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const stats = await zoteroClient.getLibraryStats();
       return {
         content: [{ type: "text", text: JSON.stringify(stats, null, 2) }],
+      };
+    }
+
+    if (name === "zotero_upload_file") {
+      const { parentKey, filePath, filename } = z.object({ 
+        parentKey: z.string(),
+        filePath: z.string(),
+        filename: z.string().optional(),
+      }).parse(args);
+      if (!zoteroClient) throw new Error("Zotero client not initialized");
+      
+      const result = await zoteroClient.uploadFile(parentKey, filePath, filename);
+      return {
+        content: [{ type: "text", text: `File uploaded successfully: ${JSON.stringify(result, null, 2)}` }],
+      };
+    }
+
+    if (name === "zotero_fuse_items") {
+      const { survivorKey, extraKeys } = z.object({ 
+        survivorKey: z.string(),
+        extraKeys: z.array(z.string()),
+      }).parse(args);
+      if (!zoteroClient) throw new Error("Zotero client not initialized");
+      
+      const result = await zoteroClient.fuseItems(survivorKey, extraKeys);
+      return {
+        content: [{ type: "text", text: `Fusion complete: ${JSON.stringify(result, null, 2)}` }],
+      };
+    }
+
+    if (name === "zotero_associate_items") {
+      const { itemA, itemB, type } = z.object({ 
+        itemA: z.string(),
+        itemB: z.string(),
+        type: z.enum(["reparent", "link"]),
+      }).parse(args);
+      if (!zoteroClient) throw new Error("Zotero client not initialized");
+      
+      const result = await zoteroClient.associateItems(itemA, itemB, type);
+      return {
+        content: [{ type: "text", text: `Items associated successfully: ${JSON.stringify(result, null, 2)}` }],
       };
     }
 

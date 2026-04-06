@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "gefyra",
   "version": "3.1.0",
   "description": "Gefyra (Γέφυρα) - The definitive IA-Agentic Bridge between Zotero and Large Language Models",
@@ -15,6 +15,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.28.0",
     "axios": "^1.13.6",
+    "form-data": "^4.0.5",
     "pdf-parse": "^2.4.5",
     "zod": "^4.3.6"
   },

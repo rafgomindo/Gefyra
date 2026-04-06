@@ -2,8 +2,8 @@ import requests
 import json
 import collections
 
-uid = "7679932"
-key = "REDACTED_ZOTERO_API_KEY"
+uid = "" # "7679932"
+key = "" # "REDACTED_ZOTERO_API_KEY"
 
 def clean_for_match(text):
     if not text: return ""

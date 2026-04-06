@@ -1,6 +1,9 @@
 import axios, { AxiosInstance } from "axios";
 import process from "node:process";
 import { createRequire } from "node:module";
+import { readFile, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import path from "node:path";
 
 const require = createRequire(import.meta.url);
 const pdf = require("pdf-parse");
@@ -19,8 +22,8 @@ export class ZoteroClient {
   private apiKey: string;
 
   constructor() {
-    this.userId = (process.env.ZOTERO_USER_ID || "7679932").trim();
-    this.apiKey = (process.env.ZOTERO_API_KEY || "mGvqRaKVSavhQqD2RQh1vL9A").trim();
+    this.userId = (process.env.ZOTERO_USER_ID || "").trim();
+    this.apiKey = (process.env.ZOTERO_API_KEY || "").trim();
     const localURL = (process.env.ZOTERO_LOCAL_URL || "http://localhost:23119").trim();
     const cloudURL = (process.env.ZOTERO_CLOUD_URL || "https://api.zotero.org").trim();
 
@@ -522,5 +525,169 @@ export class ZoteroClient {
   async reparentAttachment(attachmentKey: string, parentKey: string): Promise<any> {
     const item = await this.getItem(attachmentKey);
     return this.updateItem(attachmentKey, { parentItem: parentKey }, item.version);
+  }
+
+  /**
+   * Upload a local file to Zotero and attach it to a parent item.
+   * @param parentKey The key of the parent item.
+   * @param filePath The local path to the file.
+   * @param filename Optional filename (defaults to local basename).
+   */
+  async uploadFile(parentKey: string, filePath: string, filename?: string): Promise<any> {
+    const name = filename || path.basename(filePath);
+    const fileStats = await stat(filePath);
+    const fileBuffer = await readFile(filePath);
+    const md5 = createHash("md5").update(fileBuffer).digest("hex");
+    const mtime = Math.floor(fileStats.mtimeMs);
+
+    // 1. Create the attachment item
+    const attachmentItem = {
+      itemType: "attachment",
+      parentItem: parentKey,
+      linkMode: "imported_file",
+      title: name,
+      filename: name,
+      contentType: this.getMimeType(name),
+    };
+
+    const createResponse = await this.createItem(attachmentItem);
+    const attachmentKey = createResponse.successful["0"].key;
+
+    // 2. Get upload authorization
+    const authUrl = `/users/${this.userId}/items/${attachmentKey}/file`;
+    const authData = `md5=${md5}&filename=${encodeURIComponent(name)}&filesize=${fileStats.size}&mtime=${mtime}`;
+    
+    const authResponse = await this.request("post", authUrl, {
+      data: authData,
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "If-None-Match": "*",
+      },
+      params: { params: 1 }
+    });
+
+    if (authResponse.exists) {
+      console.error(`File already exists in Zotero for item ${attachmentKey}.`);
+      return { attachmentKey, status: "exists" };
+    }
+
+    // 3. Perform the upload to the provided URL (e.g. S3)
+    const { url, uploadKey, params } = authResponse;
+    const formData = new URLSearchParams();
+    
+    // Zotero expects parameters from authResponse to be sent in the form
+    // We'll use a multipart/form-data approach or whatever Zotero docs specify
+    // Actually, when params=1 is used, we get an array of parameters.
+    
+    // We need to use axios to POST to the URL with the file content
+    // The Zotero documentation says: "Concatenate prefix, file contents, and suffix and POST..."
+    // But with params=1, we should send them as form fields.
+    
+    const uploadForm = new (createRequire(import.meta.url)("form-data"))();
+    for (const [key, value] of Object.entries(params)) {
+      uploadForm.append(key, value);
+    }
+    uploadForm.append("file", fileBuffer, { filename: name });
+
+    await axios.post(url, uploadForm, {
+      headers: uploadForm.getHeaders()
+    });
+
+    // 4. Register the upload
+    const registerResponse = await this.request("post", authUrl, {
+      data: `upload=${uploadKey}`,
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "If-None-Match": "*",
+      }
+    });
+
+    return { attachmentKey, status: "uploaded" };
+  }
+
+  private getMimeType(filename: string): string {
+    const ext = path.extname(filename).toLowerCase();
+    const map: Record<string, string> = {
+      ".pdf": "application/pdf",
+      ".epub": "application/epub+zip",
+      ".zip": "application/zip",
+      ".txt": "text/plain",
+      ".html": "text/html",
+      ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ".jpg": "image/jpeg",
+      ".png": "image/png",
+    };
+    return map[ext] || "application/octet-stream";
+  }
+
+  /**
+   * Fuse (merge) multiple items into one.
+   * All children from 'extraKeys' will be moved to 'survivorKey'.
+   * The 'extraKeys' items will then be moved to trash.
+   * @param survivorKey The key of the item that will remain.
+   * @param extraKeys List of keys of items to be merged into the survivor.
+   */
+  async fuseItems(survivorKey: string, extraKeys: string[]): Promise<any> {
+    const survivor = await this.getItem(survivorKey);
+    const results = [];
+
+    for (const extraKey of extraKeys) {
+      try {
+        const extra = await this.getItem(extraKey);
+        const children = await this.getChildren(extraKey);
+
+        for (const child of children) {
+          await this.reparentAttachment(child.key, survivorKey);
+        }
+
+        await this.trashItem(extraKey, extra.version);
+        results.push({ key: extraKey, status: "fused" });
+      } catch (e: any) {
+        results.push({ key: extraKey, status: "failed", error: e.message });
+      }
+    }
+
+    // Tag the survivor
+    await this.updateItem(survivorKey, {
+      tags: (survivor.data.tags || []).concat([
+        { tag: "gefyra:fused" },
+        { tag: "gefyra:master" }
+      ])
+    }, survivor.version);
+
+    return { survivorKey, extras: results };
+  }
+
+  /**
+   * Associate two items. 
+   * Supports 'reparent' (make child of) or 'link' (make related items).
+   * @param itemA The primary item key.
+   * @param itemB The secondary item key (child or related item).
+   * @param type 'reparent' (itemB becomes child of itemA) or 'link' (bilateral relationship).
+   */
+  async associateItems(itemA: string, itemB: string, type: "reparent" | "link"): Promise<any> {
+    if (type === "reparent") {
+      return this.reparentAttachment(itemB, itemA);
+    } else {
+      // Zotero bilateral relations
+      const item1 = await this.getItem(itemA);
+      const item2 = await this.getItem(itemB);
+
+      const rel1 = item1.data.relations || {};
+      const rel2 = item2.data.relations || {};
+
+      const sameAs = "owl:sameAs";
+      const uri1 = `http://zotero.org/users/${this.userId}/items/${itemA}`;
+      const uri2 = `http://zotero.org/users/${this.userId}/items/${itemB}`;
+
+      // Add mutual links
+      rel1[sameAs] = rel1[sameAs] ? (Array.isArray(rel1[sameAs]) ? [...rel1[sameAs], uri2] : [rel1[sameAs], uri2]) : uri2;
+      rel2[sameAs] = rel2[sameAs] ? (Array.isArray(rel2[sameAs]) ? [...rel2[sameAs], uri1] : [rel2[sameAs], uri1]) : uri1;
+
+      await this.updateItem(itemA, { relations: rel1 }, item1.version);
+      await this.updateItem(itemB, { relations: rel2 }, item2.version);
+
+      return { status: "linked", items: [itemA, itemB] };
+    }
   }
 }

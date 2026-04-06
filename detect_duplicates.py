@@ -2,8 +2,8 @@ import requests
 import json
 import collections
 
-uid = "7679932"
-key = "mGvqRaKVSavhQqD2RQh1vL9A"
+uid = "" # "7679932"
+key = "" # "mGvqRaKVSavhQqD2RQh1vL9A"
 
 def clean_for_match(text):
     if not text: return ""

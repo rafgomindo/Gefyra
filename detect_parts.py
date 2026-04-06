@@ -3,8 +3,8 @@ import json
 import collections
 import re
 
-uid = "7679932"
-key = "mGvqRaKVSavhQqD2RQh1vL9A"
+uid = "" # "7679932"
+key = "" # "mGvqRaKVSavhQqD2RQh1vL9A"
 
 def normalize_title(title):
     if not title: return ""

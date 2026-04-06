@@ -1,0 +1,25 @@
+﻿{
+  "name": "gefyra",
+  "version": "3.1.0",
+  "description": "Gefyra (Γέφυρα) - The definitive IA-Agentic Bridge between Zotero and Large Language Models",
+  "main": "build/index.js",
+  "type": "module",
+  "bin": {
+    "gefyra": "build/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.28.0",
+    "axios": "^1.13.6",
+    "pdf-parse": "^2.4.5",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^6.0.2"
+  }
+}

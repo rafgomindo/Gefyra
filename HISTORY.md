@@ -2,6 +2,17 @@
 
 Track the development, iterative fixes, and state-of-the-art updates of the Gefyra MCP Server.
 
+## 🧰 v3.3.0: The Reliability & Reach Update (2026-08-18)
+**Primary Focus**: Safety guardrails, resilience, group libraries, and bulk operations.
+
+*   **`GEFYRA_READ_ONLY` guardrail mode**: Every write tool (create/update/trash/tag/fuse/associate/upload) now refuses immediately, before any network call, when `GEFYRA_READ_ONLY=true`. Lets you hand Gefyra to an AI agent without risking a live research library.
+*   **Group library support**: `ZOTERO_LIBRARY_TYPE=group` + `ZOTERO_LIBRARY_ID` point every tool at a shared Zotero group library instead of your personal one. The local-desktop fast path is automatically skipped for group libraries, since Zotero's local API only serves the personal library.
+*   **Automatic retry with backoff**: Cloud requests now retry on 429 (rate limited) and 503 (service unavailable), honoring Zotero's `Retry-After` header when present. A batch job no longer dies on the first transient hiccup.
+*   **`zotero_batch_update_items` / `zotero_batch_add_tags`**: Update or tag many items in one tool call instead of one round-trip per item; each item reports its own success/failure.
+*   **`zotero_get_citation`**: Formatted bibliography entries in any CSL style Zotero supports (APA, Chicago, MLA, IEEE, ...), not just BibTeX.
+*   **More tests**: Added coverage for the read-only guardrail (`src/zotero-client.test.ts`).
+*   **History scrub**: The leaked key from v3.2.1 was also purged from git history itself (all commits rewritten, old orphaned tags from an earlier abandoned project lineage removed) after the key was rotated.
+
 ## 🔒 v3.2.1: The Hardening Patch (2026-08-18)
 **Primary Focus**: Security cleanup and correctness fixes across the core server.
 

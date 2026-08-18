@@ -1,6 +1,6 @@
-# Gefyra (Γέφυρα) - v3.2.1 (The Librarian Edition) 🌉📚🦾🔩
+# Gefyra (Γέφυρα) - v3.3.0 (The Librarian Edition) 🌉📚🦾🔩
 
-![Academic](https://img.shields.io/badge/Academic-Zotero-red?style=for-the-badge) ![AI](https://img.shields.io/badge/AI-Agentic--Bridge-blue?style=for-the-badge) ![Version](https://img.shields.io/badge/Version-3.2.1--Librarian-emerald?style=for-the-badge)
+![Academic](https://img.shields.io/badge/Academic-Zotero-red?style=for-the-badge) ![AI](https://img.shields.io/badge/AI-Agentic--Bridge-blue?style=for-the-badge) ![Version](https://img.shields.io/badge/Version-3.3.0--Librarian-emerald?style=for-the-badge)
 
 ### 🏷️ **Project Tags**
 `#TalkToZotero` `#TalkToYourLibrary` `#IA` `#Zotero` `#IABridge` `#Gefyra` `#ResearchAutomation` `#LibraryDiagnostics`
@@ -36,11 +36,32 @@ Gefyra works as an **MCP Server** (Model Context Protocol). Add it to your AI co
 }
 ```
 
+#### Optional environment variables
+| Variable | Default | Purpose |
+|---|---|---|
+| `ZOTERO_LIBRARY_TYPE` | `user` | Set to `group` to point Gefyra at a shared Zotero group library instead of your personal one. |
+| `ZOTERO_LIBRARY_ID` | (your `ZOTERO_USER_ID`) | The group ID when `ZOTERO_LIBRARY_TYPE=group`. |
+| `GEFYRA_READ_ONLY` | unset | Set to `true` to disable every write tool (create/update/trash/tag/fuse/associate/upload). Search and read tools keep working. |
+| `ZOTERO_LOCAL_URL` | `http://localhost:23119` | Override the local Zotero desktop API address. |
+| `ZOTERO_CLOUD_URL` | `https://api.zotero.org` | Override the Zotero Cloud API address. |
+
 ---
 
-## 🚀 The Librarian Toolset (v3.2.1)
+## 🚀 The Librarian Toolset (v3.3.0)
 
 Gefyra now exposes powerful atomic tools directly to your AI agent:
+
+### 🛡️ Read-only mode
+Set `GEFYRA_READ_ONLY=true` in the server's `env` block to hand Gefyra to an AI agent without risking your live library — every write tool (`zotero_create_item`, `zotero_update_item`, `zotero_trash_item`, `zotero_add_tags`, `zotero_fuse_items`, `zotero_associate_items`, `zotero_upload_file`, batch tools, etc.) refuses immediately with a clear error, before making any network call. Search, get, and `zotero_find_duplicates` keep working normally.
+
+### 👥 Group library support
+Point Gefyra at a shared Zotero group library (e.g. a doctoral committee or co-authored library) instead of your personal one via `ZOTERO_LIBRARY_TYPE=group` + `ZOTERO_LIBRARY_ID`. All tools work the same way against the group library; the local-desktop fast path is skipped automatically since the local Zotero API only serves your personal library.
+
+### 📦 `zotero_batch_update_items` / `zotero_batch_add_tags`
+Update or tag many items in a single tool call instead of one call per item. Each item is applied independently and reports its own success/failure, so one bad update doesn't abort the rest of the batch.
+
+### 📚 `zotero_get_citation`
+Get a formatted bibliography entry in any CSL style Zotero supports (`apa`, `chicago-author-date`, `mla`, `ieee`, ...) — not just BibTeX.
 
 ### 📤 `zotero_upload_file`
 Push local files directly into your Zotero Cloud. 

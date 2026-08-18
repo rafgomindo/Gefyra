@@ -17,7 +17,11 @@ try {
     console.error("Warning: ZOTERO_USER_ID is not set. Set it in your MCP server config.");
   }
   zoteroClient = new ZoteroClient();
-  console.error(`Gefyra v3.2.1 initializing (UserID: ${userId || "not set"})`);
+  const libraryType = (process.env.ZOTERO_LIBRARY_TYPE || "user").trim().toLowerCase() === "group" ? "group" : "user";
+  console.error(
+    `Gefyra v3.3.0 initializing (UserID: ${userId || "not set"}, library: ${libraryType}` +
+    `${zoteroClient.readOnly ? ", READ-ONLY mode" : ""})`
+  );
 } catch (error: any) {
   console.error("Warning: Zotero client could not be initialized.");
   console.error(error.message);
@@ -26,7 +30,7 @@ try {
 const server = new Server(
   {
     name: "gefyra",
-    version: "3.2.1",
+    version: "3.3.0",
   },
   {
     capabilities: {
@@ -113,6 +117,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             itemId: {
               type: "string",
               description: "The unique Zotero item ID",
+            },
+          },
+          required: ["itemId"],
+        },
+      },
+      {
+        name: "zotero_get_citation",
+        description: "Get a formatted citation/bibliography entry (HTML) for an item in any CSL style Zotero supports, e.g. 'apa', 'chicago-author-date', 'mla', 'ieee'. Use zotero_get_bibtex instead if you need a raw .bib entry.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            itemId: {
+              type: "string",
+              description: "The unique Zotero item ID",
+            },
+            style: {
+              type: "string",
+              description: "CSL style identifier (default 'apa')",
             },
           },
           required: ["itemId"],
@@ -281,6 +303,49 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {},
+        },
+      },
+      {
+        name: "zotero_batch_update_items",
+        description: "Update many items in one call instead of one zotero_update_item call per item. Each item is applied independently, so one failure doesn't abort the rest — check the per-item status in the response.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  itemId: { type: "string", description: "The unique Zotero item ID" },
+                  updates: { type: "object", description: "The fields to update" },
+                  version: { type: "number", description: "Current version of the item (recommended)" },
+                },
+                required: ["itemId", "updates"],
+              },
+              description: "Array of items to update",
+            },
+          },
+          required: ["items"],
+        },
+      },
+      {
+        name: "zotero_batch_add_tags",
+        description: "Add the same set of tags to many items in one call instead of one zotero_add_tags call per item.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            itemIds: {
+              type: "array",
+              items: { type: "string" },
+              description: "Keys of the items to tag",
+            },
+            tags: {
+              type: "array",
+              items: { type: "string" },
+              description: "Array of tag names to add to each item",
+            },
+          },
+          required: ["itemIds", "tags"],
         },
       },
       {
@@ -462,6 +527,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       };
     }
 
+    if (name === "zotero_get_citation") {
+      const { itemId, style } = z.object({ itemId: z.string(), style: z.string().optional() }).parse(args);
+      if (!zoteroClient) throw new Error("Zotero client not initialized");
+
+      const citation = await zoteroClient.getCitation(itemId, style);
+      return {
+        content: [{ type: "text", text: citation }],
+      };
+    }
+
     if (name === "zotero_get_fulltext") {
       const { itemId } = z.object({ itemId: z.string() }).parse(args);
       if (!zoteroClient) throw new Error("Zotero client not initialized");
@@ -577,6 +652,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const tags = await zoteroClient.listTags();
       return {
         content: [{ type: "text", text: JSON.stringify(tags, null, 2) }],
+      };
+    }
+
+    if (name === "zotero_batch_update_items") {
+      const { items } = z.object({
+        items: z.array(z.object({
+          itemId: z.string(),
+          updates: z.record(z.string(), z.any()),
+          version: z.number().optional(),
+        })),
+      }).parse(args);
+      if (!zoteroClient) throw new Error("Zotero client not initialized");
+
+      const results = await zoteroClient.batchUpdateItems(
+        items.map(i => ({ key: i.itemId, updates: i.updates, version: i.version }))
+      );
+      return {
+        content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
+      };
+    }
+
+    if (name === "zotero_batch_add_tags") {
+      const { itemIds, tags } = z.object({
+        itemIds: z.array(z.string()),
+        tags: z.array(z.string()),
+      }).parse(args);
+      if (!zoteroClient) throw new Error("Zotero client not initialized");
+
+      const results = await zoteroClient.batchAddTags(itemIds, tags);
+      return {
+        content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
       };
     }
 
@@ -939,7 +1045,7 @@ async function main() {
 
   const uid = process.env.ZOTERO_USER_ID || "not-set";
   const keyExists = !!process.env.ZOTERO_API_KEY;
-  console.error(`Gefyra v3.2.1 running. UID: ${uid}, API key configured: ${keyExists}`);
+  console.error(`Gefyra v3.3.0 running. UID: ${uid}, API key configured: ${keyExists}`);
 }
 
 main().catch((error) => {

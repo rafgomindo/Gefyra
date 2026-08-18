@@ -21,12 +21,19 @@ export class ZoteroClient {
   private cloudClient: AxiosInstance | null = null;
   private userId: string;
   private apiKey: string;
+  private libraryType: "user" | "group";
+  private libraryId: string;
+  public readonly readOnly: boolean;
 
   constructor() {
     this.userId = (process.env.ZOTERO_USER_ID || "").trim();
     this.apiKey = (process.env.ZOTERO_API_KEY || "").trim();
     const localURL = (process.env.ZOTERO_LOCAL_URL || "http://localhost:23119").trim();
     const cloudURL = (process.env.ZOTERO_CLOUD_URL || "https://api.zotero.org").trim();
+
+    this.libraryType = (process.env.ZOTERO_LIBRARY_TYPE || "user").trim().toLowerCase() === "group" ? "group" : "user";
+    this.libraryId = (process.env.ZOTERO_LIBRARY_ID || "").trim() || this.userId;
+    this.readOnly = (process.env.GEFYRA_READ_ONLY || "").trim().toLowerCase() === "true";
 
     // Initialize Local Client
     this.localClient = axios.create({
@@ -50,6 +57,25 @@ export class ZoteroClient {
   }
 
   /**
+   * The REST path prefix for the configured library ("/users/{id}" or
+   * "/groups/{id}"), and the matching Zotero URI prefix for relations.
+   */
+  private get libraryPrefix(): string {
+    return this.libraryType === "group" ? `/groups/${this.libraryId}` : `/users/${this.libraryId}`;
+  }
+
+  /**
+   * Throws if GEFYRA_READ_ONLY is set. Called at the top of every method that
+   * writes to the library, so a misbehaving or over-eager AI agent can't
+   * mutate a live research library unless the operator opts in.
+   */
+  private assertWritable(action: string): void {
+    if (this.readOnly) {
+      throw new Error(`Refused: Gefyra is running in read-only mode (GEFYRA_READ_ONLY=true). Cannot ${action}.`);
+    }
+  }
+
+  /**
    * Diagnostic passthrough for the internal request handler, exposed for the
    * zotero_raw_request MCP tool so callers don't need to bypass encapsulation.
    */
@@ -64,10 +90,11 @@ export class ZoteroClient {
     const { data, ...axiosConfig } = config;
     const isCloudSearch = axiosConfig.params && (axiosConfig.params.limit > 50 || axiosConfig.params.qmode);
 
-    // 1. Try Local (READ operations ONLY)
-    if (this.localClient && method.toLowerCase() === "get" && !isCloudSearch) {
+    // 1. Try Local (READ operations ONLY, personal library only — the local
+    // Zotero API doesn't serve group libraries)
+    if (this.localClient && this.libraryType === "user" && method.toLowerCase() === "get" && !isCloudSearch) {
       try {
-        const localUrl = url.replace(new RegExp(`^/users/${this.userId}`), "");
+        const localUrl = url.replace(new RegExp(`^${this.libraryPrefix}`), "");
         const response = await (this.localClient as any)[method.toLowerCase()](localUrl, axiosConfig);
         return response.data;
       } catch (error: any) {
@@ -80,12 +107,13 @@ export class ZoteroClient {
       try {
         console.error(`Attempting Cloud Request: ${method.toUpperCase()} ${url}`);
         const axiosMethod = method.toLowerCase();
-        let response;
-        if (axiosMethod === "get" || axiosMethod === "delete") {
-          response = await (this.cloudClient as any)[axiosMethod](url, axiosConfig);
-        } else {
-          response = await (this.cloudClient as any)[axiosMethod](url, data, axiosConfig);
-        }
+        const response = await this.withRetry<any>(
+          () => axiosMethod === "get" || axiosMethod === "delete"
+            ? (this.cloudClient as any)[axiosMethod](url, axiosConfig)
+            : (this.cloudClient as any)[axiosMethod](url, data, axiosConfig),
+          `${method.toUpperCase()} ${url}`,
+          method
+        );
         return response.data;
       } catch (error: any) {
         this.handleApiError(error, `${method.toUpperCase()} ${url}`);
@@ -105,10 +133,48 @@ export class ZoteroClient {
       throw new Error("No Zotero Cloud client configured (ZOTERO_API_KEY missing).");
     }
     try {
-      const response = await (this.cloudClient as any)[method.toLowerCase()](url, config);
+      const response = await this.withRetry<any>(
+        () => (this.cloudClient as any)[method.toLowerCase()](url, config),
+        `${method.toUpperCase()} ${url}`,
+        method
+      );
       return { data: response.data, headers: response.headers };
     } catch (error: any) {
       this.handleApiError(error, `${method.toUpperCase()} ${url}`);
+    }
+  }
+
+  /**
+   * Retries a Zotero Cloud request on transient failures: 429 (rate limited)
+   * and 503 (service unavailable) are safe to retry for any verb since Zotero
+   * guarantees the request wasn't processed. A connection-level failure with
+   * no response at all is only retried for idempotent verbs (GET/DELETE/PUT),
+   * to avoid double-submitting a create/update whose result we never saw.
+   * Honors the Retry-After header when Zotero sends one.
+   */
+  private async withRetry<T>(fn: () => Promise<T>, context: string, method: string, maxRetries = 3): Promise<T> {
+    let attempt = 0;
+    while (true) {
+      try {
+        return await fn();
+      } catch (error: any) {
+        if (!axios.isAxiosError(error)) throw error;
+
+        const status = error.response?.status;
+        const noResponse = !error.response;
+        const idempotent = ["get", "delete", "put"].includes(method.toLowerCase());
+        const retryable = status === 429 || status === 503 || (noResponse && idempotent);
+
+        if (!retryable || attempt >= maxRetries) throw error;
+
+        const retryAfterHeader = error.response?.headers?.["retry-after"];
+        const retryAfterMs = retryAfterHeader ? parseInt(retryAfterHeader, 10) * 1000 : undefined;
+        const backoffMs = retryAfterMs || Math.min(500 * 2 ** attempt, 8000) + Math.random() * 250;
+
+        attempt++;
+        console.error(`Transient error for ${context} (attempt ${attempt}/${maxRetries}), retrying in ${Math.round(backoffMs)}ms...`);
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+      }
     }
   }
 
@@ -151,8 +217,8 @@ export class ZoteroClient {
     }
 
     const url = collectionKey
-      ? `/users/${this.userId}/collections/${collectionKey}/items`
-      : `/users/${this.userId}/items`;
+      ? `${this.libraryPrefix}/collections/${collectionKey}/items`
+      : `${this.libraryPrefix}/items`;
 
     return this.request("get", url, { params });
   }
@@ -257,7 +323,8 @@ export class ZoteroClient {
    * Delete a single item (or multiple).
    */
   async deleteItem(itemKey: string, version?: number): Promise<any> {
-    const url = `/users/${this.userId}/items/${itemKey}`;
+    this.assertWritable(`delete item ${itemKey}`);
+    const url = `${this.libraryPrefix}/items/${itemKey}`;
     const config: any = {};
     if (version) {
       config.headers = { "If-Unmodified-Since-Version": version.toString() };
@@ -275,7 +342,7 @@ export class ZoteroClient {
 
     while (true) {
       // Correct Zotero Cloud V3 parameters: trashed=1
-      const url = `/users/${this.userId}/items`;
+      const url = `${this.libraryPrefix}/items`;
       const batch = await this.request("get", url, { 
         params: { 
           trashed: 1, 
@@ -306,19 +373,19 @@ export class ZoteroClient {
     
     try {
       // 1. Regular items count
-      const items = await this.request("get", `/users/${this.userId}/items`, { params: { limit: 1 } });
+      const items = await this.request("get", `${this.libraryPrefix}/items`, { params: { limit: 1 } });
       results.activeCount = items.length;
     } catch (e) {}
 
     try {
       // 2. Trash items count
-      const trash = await this.request("get", `/users/${this.userId}/items`, { params: { trashed: 1, limit: 1 } });
+      const trash = await this.request("get", `${this.libraryPrefix}/items`, { params: { trashed: 1, limit: 1 } });
       results.trashCount = trash.length;
     } catch (e) {}
 
     try {
       // 3. Recently deleted logs
-      const deleted = await this.request("get", `/users/${this.userId}/deleted`);
+      const deleted = await this.request("get", `${this.libraryPrefix}/deleted`);
       results.deletedLogsSize = JSON.stringify(deleted).length;
     } catch (e) {}
 
@@ -331,7 +398,7 @@ export class ZoteroClient {
    * @param itemId The unique Zotero item key.
    */
   async getItem(itemId: string): Promise<ZoteroItem> {
-    return this.request("get", `/users/${this.userId}/items/${itemId}`, {
+    return this.request("get", `${this.libraryPrefix}/items/${itemId}`, {
       params: {
         format: "json",
       },
@@ -342,7 +409,7 @@ export class ZoteroClient {
    * List collections in the library.
    */
   async listCollections() {
-    return this.request("get", `/users/${this.userId}/collections`, {
+    return this.request("get", `${this.libraryPrefix}/collections`, {
       params: {
         format: "json",
       },
@@ -353,7 +420,7 @@ export class ZoteroClient {
    * List all tags in the library.
    */
   async listTags() {
-    return this.request("get", `/users/${this.userId}/tags`, {
+    return this.request("get", `${this.libraryPrefix}/tags`, {
       params: {
         format: "json",
       },
@@ -395,7 +462,7 @@ export class ZoteroClient {
     };
 
     try {
-      const { headers } = await this.requestFull("get", `/users/${this.userId}/items`, { params: { limit: 1 } });
+      const { headers } = await this.requestFull("get", `${this.libraryPrefix}/items`, { params: { limit: 1 } });
       results.items = parseInt(headers["total-results"], 10) || 0;
     } catch (e) {}
 
@@ -416,9 +483,25 @@ export class ZoteroClient {
    * @param itemId The unique Zotero item key.
    */
   async getBibTeX(itemId: string): Promise<string> {
-    return this.request("get", `/users/${this.userId}/items/${itemId}`, {
+    return this.request("get", `${this.libraryPrefix}/items/${itemId}`, {
       params: {
         format: "bibtex",
+      },
+    });
+  }
+
+  /**
+   * Get a formatted citation/bibliography entry for an item in any CSL style
+   * Zotero supports (e.g. "apa", "chicago-author-date", "mla", "ieee").
+   * Returns HTML, unlike getBibTeX which returns a .bib entry.
+   * @param itemId The unique Zotero item key.
+   * @param style A CSL style identifier. Defaults to "apa".
+   */
+  async getCitation(itemId: string, style = "apa"): Promise<string> {
+    return this.request("get", `${this.libraryPrefix}/items/${itemId}`, {
+      params: {
+        format: "bib",
+        style,
       },
     });
   }
@@ -428,7 +511,7 @@ export class ZoteroClient {
    * @param itemId The unique Zotero item key.
    */
   async getItemChildren(itemId: string): Promise<ZoteroItem[]> {
-    return this.request("get", `/users/${this.userId}/items/${itemId}/children`, {
+    return this.request("get", `${this.libraryPrefix}/items/${itemId}/children`, {
       params: {
         format: "json",
       },
@@ -464,7 +547,7 @@ export class ZoteroClient {
    * Specialized request for file downloads (binary data).
    */
   public async client_for_file_download(itemKey: string): Promise<any> {
-    const url = `/users/${this.userId}/items/${itemKey}/file`;
+    const url = `${this.libraryPrefix}/items/${itemKey}/file`;
     const config: any = { responseType: "arraybuffer" };
 
     // Try Local
@@ -492,6 +575,7 @@ export class ZoteroClient {
    * @param noteContent The HTML/text content of the note.
    */
   async addNote(parentItemId: string, noteContent: string): Promise<ZoteroItem> {
+    this.assertWritable(`add a note to item ${parentItemId}`);
     const note = [
       {
         itemType: "note",
@@ -501,7 +585,7 @@ export class ZoteroClient {
       },
     ];
 
-    return this.request("post", `/users/${this.userId}/items`, note);
+    return this.request("post", `${this.libraryPrefix}/items`, note);
   }
 
   /**
@@ -530,7 +614,8 @@ export class ZoteroClient {
    * @param itemData The JSON representation of the new item.
    */
   async createItem(itemData: any): Promise<any> {
-    return this.request("post", `/users/${this.userId}/items`, {
+    this.assertWritable("create an item");
+    return this.request("post", `${this.libraryPrefix}/items`, {
       data: Array.isArray(itemData) ? itemData : [itemData],
     });
   }
@@ -542,13 +627,14 @@ export class ZoteroClient {
    * @param version The current version of the item (for concurrency control).
    */
   async updateItem(itemKey: string, updates: any, version?: number): Promise<any> {
+    this.assertWritable(`update item ${itemKey}`);
     const headers: any = {};
     if (version !== undefined) {
       // Zotero Cloud V3 uses If-Unmodified-Since-Version for key-based writes
       headers["If-Unmodified-Since-Version"] = version.toString();
     }
     
-    return this.request("patch", `/users/${this.userId}/items/${itemKey}`, {
+    return this.request("patch", `${this.libraryPrefix}/items/${itemKey}`, {
       data: updates,
       headers,
     });
@@ -560,6 +646,7 @@ export class ZoteroClient {
    * @param version The current version of the item (for concurrency control).
    */
   async trashItem(itemKey: string, version?: number): Promise<any> {
+    this.assertWritable(`trash item ${itemKey}`);
     // To trash an item, we update its 'deleted' property to 1
     // Zotero Cloud requires the version in the data and the If-Unmodified-Since-Version header
     const data: any = { deleted: 1 };
@@ -569,7 +656,7 @@ export class ZoteroClient {
       headers["If-Unmodified-Since-Version"] = version.toString();
     }
     
-    return this.request("patch", `/users/${this.userId}/items/${itemKey}`, {
+    return this.request("patch", `${this.libraryPrefix}/items/${itemKey}`, {
       data,
       headers,
     });
@@ -581,6 +668,7 @@ export class ZoteroClient {
    * @param tags Array of tag strings.
    */
   async addTags(itemKey: string, tags: string[]): Promise<any> {
+    this.assertWritable(`add tags to item ${itemKey}`);
     const item = await this.getItem(itemKey);
     const existingTags = item.data.tags || [];
     const newTags = [...existingTags];
@@ -595,17 +683,63 @@ export class ZoteroClient {
   }
 
   /**
+   * Update many items in one call. Runs sequentially (not in parallel) so a
+   * large batch doesn't slam the Zotero API and trip its rate limiter; each
+   * item's success/failure is reported independently so one bad update
+   * doesn't abort the rest of the batch.
+   * @param items Items to update, each with its key, the fields to change,
+   *   and (recommended) its current version for concurrency safety.
+   */
+  async batchUpdateItems(items: Array<{ key: string; updates: any; version?: number }>): Promise<Array<{ key: string; status: "success" | "failed"; error?: string }>> {
+    this.assertWritable(`batch update ${items.length} items`);
+    const results: Array<{ key: string; status: "success" | "failed"; error?: string }> = [];
+
+    for (const { key, updates, version } of items) {
+      try {
+        await this.updateItem(key, updates, version);
+        results.push({ key, status: "success" });
+      } catch (e: any) {
+        results.push({ key, status: "failed", error: e.message });
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Add the same set of tags to many items in one call.
+   * @param itemKeys Keys of the items to tag.
+   * @param tags Tag names to add to each item.
+   */
+  async batchAddTags(itemKeys: string[], tags: string[]): Promise<Array<{ key: string; status: "success" | "failed"; error?: string }>> {
+    this.assertWritable(`batch tag ${itemKeys.length} items`);
+    const results: Array<{ key: string; status: "success" | "failed"; error?: string }> = [];
+
+    for (const key of itemKeys) {
+      try {
+        await this.addTags(key, tags);
+        results.push({ key, status: "success" });
+      } catch (e: any) {
+        results.push({ key, status: "failed", error: e.message });
+      }
+    }
+
+    return results;
+  }
+
+  /**
    * Create a new collection.
    * @param name Name of the collection.
    * @param parentKey Optional parent collection key.
    */
   async createCollection(name: string, parentKey?: string): Promise<any> {
+    this.assertWritable(`create collection '${name}'`);
     const data: any = { name };
     if (parentKey) {
       data.parentCollection = parentKey;
     }
     
-    return this.request("post", `/users/${this.userId}/collections`, {
+    return this.request("post", `${this.libraryPrefix}/collections`, {
       data: [data],
     });
   }
@@ -616,6 +750,7 @@ export class ZoteroClient {
    * @param parentKey The unique Zotero key of the new parent item.
    */
   async reparentAttachment(attachmentKey: string, parentKey: string): Promise<any> {
+    this.assertWritable(`reparent ${attachmentKey} under ${parentKey}`);
     const item = await this.getItem(attachmentKey);
     return this.updateItem(attachmentKey, { parentItem: parentKey }, item.version);
   }
@@ -627,6 +762,7 @@ export class ZoteroClient {
    * @param filename Optional filename (defaults to local basename).
    */
   async uploadFile(parentKey: string, filePath: string, filename?: string): Promise<any> {
+    this.assertWritable(`upload a file to item ${parentKey}`);
     const name = filename || path.basename(filePath);
     const fileStats = await stat(filePath);
     const fileBuffer = await readFile(filePath);
@@ -647,7 +783,7 @@ export class ZoteroClient {
     const attachmentKey = createResponse.successful["0"].key;
 
     // 2. Get upload authorization
-    const authUrl = `/users/${this.userId}/items/${attachmentKey}/file`;
+    const authUrl = `${this.libraryPrefix}/items/${attachmentKey}/file`;
     const authData = `md5=${md5}&filename=${encodeURIComponent(name)}&filesize=${fileStats.size}&mtime=${mtime}`;
     
     const authResponse = await this.request("post", authUrl, {
@@ -721,6 +857,7 @@ export class ZoteroClient {
    * @param extraKeys List of keys of items to be merged into the survivor.
    */
   async fuseItems(survivorKey: string, extraKeys: string[]): Promise<any> {
+    this.assertWritable(`fuse items into ${survivorKey}`);
     const survivor = await this.getItem(survivorKey);
     const results = [];
 
@@ -759,6 +896,7 @@ export class ZoteroClient {
    * @param type 'reparent' (itemB becomes child of itemA) or 'link' (bilateral relationship).
    */
   async associateItems(itemA: string, itemB: string, type: "reparent" | "link"): Promise<any> {
+    this.assertWritable(`associate ${itemA} and ${itemB}`);
     if (type === "reparent") {
       return this.reparentAttachment(itemB, itemA);
     } else {
@@ -770,8 +908,8 @@ export class ZoteroClient {
       const rel2 = item2.data.relations || {};
 
       const sameAs = "owl:sameAs";
-      const uri1 = `http://zotero.org/users/${this.userId}/items/${itemA}`;
-      const uri2 = `http://zotero.org/users/${this.userId}/items/${itemB}`;
+      const uri1 = `http://zotero.org${this.libraryPrefix}/items/${itemA}`;
+      const uri2 = `http://zotero.org${this.libraryPrefix}/items/${itemB}`;
 
       // Add mutual links
       rel1[sameAs] = rel1[sameAs] ? (Array.isArray(rel1[sameAs]) ? [...rel1[sameAs], uri2] : [rel1[sameAs], uri2]) : uri2;

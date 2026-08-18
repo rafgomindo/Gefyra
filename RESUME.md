@@ -14,9 +14,10 @@ Gefyra eliminates "Citation Hallucination" by providing the AI with direct, real
 6. **`zotero_list_tags`**: Full tag dictionary retrieval.
 7. **`zotero_get_collection_tree`**: Hierarchical structural map of the library.
 8. **`zotero_get_library_stats`**: High-level database metrics and health.
+9. **`zotero_find_duplicates`**: Read-only duplicate-cluster scan with keeper scoring.
 
 ### Architecture
 - **Language**: TypeScript (Node.js)
 - **Protocol**: Model Context Protocol (MCP)
 - **API**: Zotero Web API v3
-- **Git State**: Up-to-date (V3.1.0 - "The Librarian")
+- **Git State**: Up-to-date (V3.2.1 - "The Librarian")

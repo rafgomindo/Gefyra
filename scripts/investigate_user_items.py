@@ -3,8 +3,8 @@ import os
 import requests
 import re
 
-uid = "7679932"
-key = "REDACTED_ZOTERO_API_KEY"
+uid = os.environ.get("ZOTERO_USER_ID", "")
+key = os.environ.get("ZOTERO_API_KEY", "")
 
 # The items specifically mentioned by the user
 target_parents = ["CDE95H27", "6WT2T5N3"]

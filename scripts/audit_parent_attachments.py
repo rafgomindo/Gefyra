@@ -3,8 +3,9 @@ import requests
 import time
 
 def main():
-    uid = "7679932"
-    key = "REDACTED_ZOTERO_API_KEY"
+    import os
+    uid = os.environ.get("ZOTERO_USER_ID", "")
+    key = os.environ.get("ZOTERO_API_KEY", "")
     
     with open('suspect_titles_audit.json', encoding='utf-8') as f:
         suspects = json.load(f)

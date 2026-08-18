@@ -3,8 +3,10 @@ import json
 import collections
 import re
 
-uid = "" # "7679932"
-key = "" # "REDACTED_ZOTERO_API_KEY"
+import os
+
+uid = os.environ.get("ZOTERO_USER_ID", "")
+key = os.environ.get("ZOTERO_API_KEY", "")
 
 def normalize_title(title):
     if not title: return ""

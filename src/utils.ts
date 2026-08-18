@@ -1,6 +1,26 @@
 /**
  * Shared utility for parsing Zotero filenames.
  */
+
+/**
+ * Normalize a title for duplicate-matching: strips filename suffixes, JSTOR
+ * boilerplate, and the trailing "a" that Better BibTeX appends to disambiguate
+ * citation keys, so two records for the same work cluster together.
+ */
+export function canonicalizeTitle(title: string): string {
+  let c = title.toLowerCase().trim();
+
+  c = c.replace(/\.(pdf|htm|html|docx)$/i, "");
+  c = c.replace(/ on jstor(\.htm)?$/i, "");
+  c = c.replace(/ - jstor$/i, "");
+
+  if (c.endsWith("a") && c.length > 5) {
+    c = c.slice(0, -1);
+  }
+
+  return c.replace(/[.,;!?-]$/, "").replace(/\s+/g, " ").trim();
+}
+
 export function capitalizeTitle(title: string): string {
     return title
         .split(/[_\s.-]+/)

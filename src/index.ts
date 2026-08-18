@@ -7,15 +7,17 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { ZoteroClient, ZoteroItem } from "./zotero-client.js";
+import { ZoteroClient } from "./zotero-client.js";
 
 let zoteroClient: ZoteroClient;
 
 try {
-  const userId = (process.env.ZOTERO_USER_ID || "7679932").trim();
-  const apiKey = (process.env.ZOTERO_API_KEY || "").trim();
-  console.error(`Gefyra v2.1.4-FINAL-REV5 Initialization: UserID="${userId}", KeyLength=${apiKey.length}`);
+  const userId = (process.env.ZOTERO_USER_ID || "").trim();
+  if (!userId) {
+    console.error("Warning: ZOTERO_USER_ID is not set. Set it in your MCP server config.");
+  }
   zoteroClient = new ZoteroClient();
+  console.error(`Gefyra v3.2.1 initializing (UserID: ${userId || "not set"})`);
 } catch (error: any) {
   console.error("Warning: Zotero client could not be initialized.");
   console.error(error.message);
@@ -24,7 +26,7 @@ try {
 const server = new Server(
   {
     name: "gefyra",
-    version: "3.1.0",
+    version: "3.2.1",
   },
   {
     capabilities: {
@@ -339,6 +341,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: "zotero_find_duplicates",
+        description: "Scan the library for probable duplicate items (read-only). Returns clusters grouped by canonicalized title/creators/year/type, each with a suggested keeper and the duplicate candidates, scored by metadata richness and attachment count. Does not tag or trash anything.",
+        inputSchema: {
+          type: "object",
+          properties: {},
+        },
+      },
+      {
         name: "zotero_associate_items",
         description: "Associate two items (reparent or link)",
         inputSchema: {
@@ -384,7 +394,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { url } = z.object({ url: z.string() }).parse(args);
       if (!zoteroClient) throw new Error("Zotero client not initialized");
       
-      const result = await (zoteroClient as any).request("get", url, { params: { format: "json" } });
+      const result = await zoteroClient.rawRequest("get", url, { params: { format: "json" } });
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       };
@@ -613,6 +623,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       };
     }
 
+    if (name === "zotero_find_duplicates") {
+      if (!zoteroClient) throw new Error("Zotero client not initialized");
+      const clusters = await zoteroClient.findDuplicateClusters();
+      return {
+        content: [{ type: "text", text: JSON.stringify(clusters, null, 2) }],
+      };
+    }
+
     if (name === "zotero_associate_items") {
       const { itemA, itemB, type } = z.object({ 
         itemA: z.string(),
@@ -639,26 +657,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     throw error;
   }
 });
-
-/**
- * Helper to strip research-specific noise from titles for better deduplication.
- */
-function canonicalizeTitle(title: string): string {
-  let c = title.toLowerCase().trim();
-  
-  // Suffixes: .pdf, on JSTOR, etc.
-  c = c.replace(/\.(pdf|htm|html|docx)$/i, "");
-  c = c.replace(/ on jstor(\.htm)?$/i, "");
-  c = c.replace(/ - jstor$/i, "");
-  
-  // Clean trailing "a" (Better BibTeX suffix)
-  if (c.endsWith("a") && c.length > 5) {
-    c = c.slice(0, -1);
-  }
-  
-  // Remove trailing punctuation and normalize whitespace
-  return c.replace(/[.,;!?-]$/, "").replace(/\s+/g, " ").trim();
-}
 
 /**
  * Helper to capitalize the first letter of each word in a string.
@@ -821,87 +819,28 @@ async function main() {
     
     try {
       console.error("Scanning library for duplicate research candidates...");
-      const items = await client.fetchAllLibraryItems();
-      
-      // 1. Cluster items by potential duplicates
-      const clusters = new Map<string, ZoteroItem[]>();
-      
-      for (const item of items) {
-        const itemData = item.data;
-        let title = (itemData.title || "").trim();
-        if (title.length < 5) continue; // Skip very short titles
-        if (title.toLowerCase().endsWith(".pdf") || title.toLowerCase().endsWith(".zip")) continue;
-        
-        // --- FUZZY GROUPING: Advanced Canonicalization ---
-        let canonicalTitle = canonicalizeTitle(title);
+      const clusters = await client.findDuplicateClusters();
 
-        const creators = (itemData.creators || []).map((c: any) => c.lastName || "").join(",");
-        const year = (itemData.date || "").substring(0, 4);
-        const type = itemData.itemType;
-
-        const clusterKey = `${canonicalTitle}|${creators.toLowerCase()}|${year}|${type}`;
-        
-        if (!clusters.has(clusterKey)) {
-          clusters.set(clusterKey, []);
-        }
-        clusters.get(clusterKey)!.push(item);
-      }
-      
       let processedCount = 0;
       let actionCount = 0;
-      
-      // 2. Process each cluster
-      for (const [clusterKey, cluster] of clusters.entries()) {
-        if (cluster.length <= 1) continue;
-        
-        console.error(`Status: Found ${cluster.length} candidates for cluster | ${clusterKey.substring(0, 100)}...`);
-        
-        // --- SCORING SYSTEM: Identify the "Keeper" ---
-        const scoredItems = await Promise.all(cluster.map(async (item) => {
-          let score = Object.keys(item.data).length; // Base score on metadata count
-          
-          if (item.data.abstractNote) score += 3;
-          if (item.data.DOI || item.data.ISBN) score += 2;
-          
-          // Penalize trailing 'a' if a non-a version exists in this cluster
-          const hasBaseVersion = cluster.some(i => !(i.data.title || "").toLowerCase().endsWith("a"));
-          if (hasBaseVersion && (item.data.title || "").toLowerCase().endsWith("a")) {
-            score -= 10;
-          }
 
-          // Check for attachments (heavy weight)
-          try {
-            const children = await client.getItemChildren(item.key);
-            const pdfs = children.filter(c => c.data.itemType === "attachment" && c.data.contentType === "application/pdf");
-            score += (pdfs.length * 5);
-          } catch (e) {
-            // Child fetch failed, ignore
-          }
-          
-          return { item, score };
-        }));
-        
-        // Sort by score descending
-        scoredItems.sort((a, b) => b.score - a.score);
-        
-        const keeper = scoredItems[0].item;
-        const duplicates = scoredItems.slice(1);
-        
-        console.error(`   -> Selected Keeper: [${keeper.key}] (Score: ${scoredItems[0].score}) | ${keeper.data.title || "No Title"}`);
-        
-        for (const { item, score } of duplicates) {
+      for (const { clusterKey, keeper, duplicates } of clusters) {
+        console.error(`Status: Found ${duplicates.length + 1} candidates for cluster | ${clusterKey.substring(0, 100)}...`);
+        console.error(`   -> Selected Keeper: [${keeper.key}] (Score: ${keeper.score}) | ${keeper.title}`);
+
+        for (const { key, version, title, score } of duplicates) {
           if (applyMode) {
-            console.error(`   [TRASHING] duplicate [${item.key}] (Score: ${score}) | ${item.data.title || "No Title"}`);
-            await client.trashItem(item.key, item.version);
+            console.error(`   [TRASHING] duplicate [${key}] (Score: ${score}) | ${title}`);
+            await client.trashItem(key, version);
           } else {
-            console.error(`   [TAGGING] duplicate [${item.key}] (Score: ${score}) | ${item.data.title || "No Title"}`);
-            await client.addTags(item.key, ["gefyra:duplicate"]);
+            console.error(`   [TAGGING] duplicate [${key}] (Score: ${score}) | ${title}`);
+            await client.addTags(key, ["gefyra:duplicate"]);
           }
           actionCount++;
         }
         processedCount++;
       }
-      
+
       console.error(`\nSUCCESS: ${applyMode ? "Trashed" : "Tagged"} ${actionCount} duplicates across ${processedCount} clusters.`);
       if (!applyMode) {
         console.error("Manual review required: Search for 'gefyra:duplicate' in Zotero to verify. Use --dedupe-apply to automate trashing.");
@@ -997,13 +936,10 @@ async function main() {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  
-  // SECURE DIAGNOSTIC: Log limited info to stderr to verify ENV injection
+
   const uid = process.env.ZOTERO_USER_ID || "not-set";
   const keyExists = !!process.env.ZOTERO_API_KEY;
-  const keyStart = process.env.ZOTERO_API_KEY ? process.env.ZOTERO_API_KEY.substring(0, 4) : "none";
-  
-  console.error(`Gefyra v2.1.12 running. UID: ${uid}, KEY_START: ${keyStart}... (Exists: ${keyExists})`);
+  console.error(`Gefyra v3.2.1 running. UID: ${uid}, API key configured: ${keyExists}`);
 }
 
 main().catch((error) => {

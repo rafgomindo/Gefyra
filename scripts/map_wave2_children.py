@@ -2,8 +2,8 @@ import json
 import requests
 import os
 
-uid = "7679932"
-key = "REDACTED_ZOTERO_API_KEY"
+uid = os.environ.get("ZOTERO_USER_ID", "")
+key = os.environ.get("ZOTERO_API_KEY", "")
 
 # Load identified suspects (439 items)
 with open('suspect_empty_titles.json', encoding='utf-8') as f:

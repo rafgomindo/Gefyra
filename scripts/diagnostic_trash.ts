@@ -5,7 +5,7 @@ async function diagnostic() {
   try {
     console.error("Checking Zotero Trash...");
     // Special request for trash
-    const trashItems = await (client as any).request("get", `/users/7679932/items`, {
+    const trashItems = await client.rawRequest("get", `/users/${process.env.ZOTERO_USER_ID}/items`, {
       params: { filter: "trash", format: "json", limit: 100 }
     });
     console.error(`Found ${trashItems.length} items in the top batch of Trash.`);

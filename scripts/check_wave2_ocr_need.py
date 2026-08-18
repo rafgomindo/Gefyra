@@ -3,8 +3,8 @@ import os
 import requests
 import base64
 
-uid = "7679932"
-key = "REDACTED_ZOTERO_API_KEY"
+uid = os.environ.get("ZOTERO_USER_ID", "")
+key = os.environ.get("ZOTERO_API_KEY", "")
 
 # Load Wave 2 Mapping
 with open('wave2_parent_mapping.json', encoding='utf-8') as f:

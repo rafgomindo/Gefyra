@@ -1,8 +1,10 @@
 import json
 import requests
 
-uid = "7679932"
-key = "REDACTED_ZOTERO_API_KEY"
+import os
+
+uid = os.environ.get("ZOTERO_USER_ID", "")
+key = os.environ.get("ZOTERO_API_KEY", "")
 child_keys = ["GLQH6UF6", "B5D86HXD"] # The ones I found in search
 
 def main():

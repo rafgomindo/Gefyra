@@ -1,10 +1,11 @@
 import axios from 'axios';
 
 async function forensic() {
-  const headers = { 'Zotero-API-Key': 'REDACTED_ZOTERO_API_KEY' };
+  const headers = { 'Zotero-API-Key': process.env.ZOTERO_API_KEY || '' };
+  const uid = process.env.ZOTERO_USER_ID || '';
   try {
     console.error("Checking for Group Libraries...");
-    const groupsResponse = await axios.get('https://api.zotero.org/users/7679932/groups', { headers });
+    const groupsResponse = await axios.get(`https://api.zotero.org/users/${uid}/groups`, { headers });
     const groups = groupsResponse.data;
     
     console.error(`Found ${groups.length} Group Libraries.`);

@@ -2,8 +2,10 @@ import json
 import requests
 import re
 
-uid = "7679932"
-key = "REDACTED_ZOTERO_API_KEY"
+import os
+
+uid = os.environ.get("ZOTERO_USER_ID", "")
+key = os.environ.get("ZOTERO_API_KEY", "")
 
 # The items reported by the user
 targets = [

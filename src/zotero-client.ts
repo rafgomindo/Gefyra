@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { readFile, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
+import { canonicalizeTitle } from "./utils.js";
 
 const require = createRequire(import.meta.url);
 const pdf = require("pdf-parse");
@@ -49,6 +50,14 @@ export class ZoteroClient {
   }
 
   /**
+   * Diagnostic passthrough for the internal request handler, exposed for the
+   * zotero_raw_request MCP tool so callers don't need to bypass encapsulation.
+   */
+  public async rawRequest(method: string, url: string, config: any = {}): Promise<any> {
+    return this.request(method, url, config);
+  }
+
+  /**
    * Helper that attempts a request on the Local library first, then falls back to Cloud.
    */
   private async request(method: string, url: string, config: any = {}): Promise<any> {
@@ -84,6 +93,23 @@ export class ZoteroClient {
     }
 
     throw new Error("No Zotero library available (Local and Cloud both failed or are not configured).");
+  }
+
+  /**
+   * Same as `request`, but returns the full Axios response (so callers can read
+   * response headers like Total-Results) instead of just `response.data`.
+   * Cloud-only: header totals aren't meaningful for the local Zotero API.
+   */
+  private async requestFull(method: string, url: string, config: any = {}): Promise<{ data: any; headers: any }> {
+    if (!this.cloudClient) {
+      throw new Error("No Zotero Cloud client configured (ZOTERO_API_KEY missing).");
+    }
+    try {
+      const response = await (this.cloudClient as any)[method.toLowerCase()](url, config);
+      return { data: response.data, headers: response.headers };
+    } catch (error: any) {
+      this.handleApiError(error, `${method.toUpperCase()} ${url}`);
+    }
   }
 
   private handleApiError(error: any, context: string): never {
@@ -152,12 +178,79 @@ export class ZoteroClient {
   }
 
   /**
+   * Scan the library for probable duplicate records, grouped by canonicalized
+   * title + creators + year + item type. Read-only: scores each candidate in a
+   * cluster (metadata richness, abstract/identifiers, PDF attachment count) and
+   * suggests a keeper, but never tags or trashes anything itself.
+   */
+  async findDuplicateClusters(): Promise<Array<{
+    clusterKey: string;
+    keeper: { key: string; version: number; title: string; score: number };
+    duplicates: Array<{ key: string; version: number; title: string; score: number }>;
+  }>> {
+    const items = await this.fetchAllLibraryItems();
+    const clusters = new Map<string, ZoteroItem[]>();
+
+    for (const item of items) {
+      const data = item.data;
+      const title = (data.title || "").trim();
+      if (title.length < 5) continue;
+      if (title.toLowerCase().endsWith(".pdf") || title.toLowerCase().endsWith(".zip")) continue;
+
+      const canonicalTitle = canonicalizeTitle(title);
+      const creators = (data.creators || []).map((c: any) => c.lastName || "").join(",");
+      const year = (data.date || "").substring(0, 4);
+      const type = data.itemType;
+
+      const clusterKey = `${canonicalTitle}|${creators.toLowerCase()}|${year}|${type}`;
+      if (!clusters.has(clusterKey)) clusters.set(clusterKey, []);
+      clusters.get(clusterKey)!.push(item);
+    }
+
+    const results: Array<{
+      clusterKey: string;
+      keeper: { key: string; version: number; title: string; score: number };
+      duplicates: Array<{ key: string; version: number; title: string; score: number }>;
+    }> = [];
+
+    for (const [clusterKey, cluster] of clusters.entries()) {
+      if (cluster.length <= 1) continue;
+
+      const scoredItems = await Promise.all(cluster.map(async (item) => {
+        let score = Object.keys(item.data).length;
+        if (item.data.abstractNote) score += 3;
+        if (item.data.DOI || item.data.ISBN) score += 2;
+
+        const hasBaseVersion = cluster.some(i => !(i.data.title || "").toLowerCase().endsWith("a"));
+        if (hasBaseVersion && (item.data.title || "").toLowerCase().endsWith("a")) {
+          score -= 10;
+        }
+
+        try {
+          const children = await this.getItemChildren(item.key);
+          const pdfs = children.filter(c => c.data.itemType === "attachment" && c.data.contentType === "application/pdf");
+          score += pdfs.length * 5;
+        } catch (e) {
+          // Child fetch failed, ignore
+        }
+
+        return { key: item.key, version: item.version, title: item.data.title || "No Title", score };
+      }));
+
+      scoredItems.sort((a, b) => b.score - a.score);
+      const [keeper, ...duplicates] = scoredItems;
+      results.push({ clusterKey, keeper, duplicates });
+    }
+
+    return results;
+  }
+
+  /**
    * Fetch all children of a given item.
    * @param itemKey The parent item key.
    */
   async getChildren(itemKey: string): Promise<ZoteroItem[]> {
-    const url = `/users/${this.userId}/items/${itemKey}/children`;
-    return this.request("get", url);
+    return this.getItemChildren(itemKey);
   }
 
   /**
@@ -302,8 +395,8 @@ export class ZoteroClient {
     };
 
     try {
-      const items = await this.request("get", `/users/${this.userId}/items`, { params: { limit: 1 } });
-      results.items = items.length > 0 ? parseInt(items[0].version) : 0; 
+      const { headers } = await this.requestFull("get", `/users/${this.userId}/items`, { params: { limit: 1 } });
+      results.items = parseInt(headers["total-results"], 10) || 0;
     } catch (e) {}
 
     const collections = await this.listCollections();

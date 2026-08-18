@@ -20,8 +20,8 @@ def is_suspect(title):
 def main():
     # Attempt to load from local cache if we have one to save API calls
     # Or just query the first 2000 items if the library is large
-    uid = "7679932"
-    key = "REDACTED_ZOTERO_API_KEY"
+    uid = os.environ.get("ZOTERO_USER_ID", "")
+    key = os.environ.get("ZOTERO_API_KEY", "")
     
     suspects = []
     start = 0

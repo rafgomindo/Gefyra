@@ -13,17 +13,26 @@
 
 ## ⚡ Quick Start: Ready in 60 Seconds
 
-### 1. Requirements
+### 1. Install
+```bash
+git clone https://github.com/rafgomindo/Gefyra.git
+cd Gefyra
+npm install
+npm run build
+```
+This compiles the TypeScript source into `build/` — that's the `index.js` you'll point your AI client at in step 4.
+
+### 2. Requirements
 To use the full power of Gefyra's citation and searching capabilities, you MUST have the following installed in your Zotero:
 *   [**Better BibTeX for Zotero**](https://retorque.re/zotero-better-bibtex/): This allows Gefyra to generate professional-grade BibTeX keys and citations instantly. 🧬
 
-### 2. Get Your Credentials
+### 3. Get Your Credentials
 You need two pieces of information from your Zotero account:
 *   **User ID**: Found at the top of your [Zotero API Settings](https://www.zotero.org/settings/keys). (It is a numeric ID, e.g., `1234567`).
 *   **API Key**: Create a new private key at [zotero.org/settings/keys](https://www.zotero.org/settings/keys). Make sure to check **"Allow library access"**. 🔑
 
-### 3. Setup
-Gefyra works as an **MCP Server** (Model Context Protocol). Add it to your AI configuration (like Gemini CLI, Claude Desktop, or Cursor):
+### 4. Setup
+Gefyra works as an **MCP Server** (Model Context Protocol). Add it to your AI configuration (like Gemini CLI, Claude Desktop, or Cursor), pointing `args` at the absolute path to the `build/index.js` you just compiled:
 
 ```json
 "gefyra": {
@@ -36,6 +45,11 @@ Gefyra works as an **MCP Server** (Model Context Protocol). Add it to your AI co
 }
 ```
 
+### 5. Verify it's working
+Two ways to confirm the connection before you rely on it:
+*   **From the command line, no AI client needed**: `node build/index.js --audit` prints your active and trashed item counts and exits. If you see real numbers, your credentials and connection are correct.
+*   **From your AI client**: after restarting it with the config above, ask it to call `zotero_get_library_stats` (or just ask "how many items are in my Zotero library?"). Real numbers back means it's wired up correctly. If it fails, check the server's stderr log — Gefyra prints `Gefyra vX.X.X running. UID: ..., API key configured: true/false` on every start, which tells you immediately whether your env vars actually reached the process.
+
 #### Optional environment variables
 | Variable | Default | Purpose |
 |---|---|---|
@@ -44,6 +58,8 @@ Gefyra works as an **MCP Server** (Model Context Protocol). Add it to your AI co
 | `GEFYRA_READ_ONLY` | unset | Set to `true` to disable every write tool (create/update/trash/tag/fuse/associate/upload). Search and read tools keep working. |
 | `ZOTERO_LOCAL_URL` | `http://localhost:23119` | Override the local Zotero desktop API address. |
 | `ZOTERO_CLOUD_URL` | `https://api.zotero.org` | Override the Zotero Cloud API address. |
+
+**Local vs. Cloud, automatically:** you never choose one or the other. For read operations, Gefyra first tries the Zotero desktop app's local API (fast, no rate limits) if it's running, and silently falls back to the Zotero Cloud API if it isn't — or if the request needs cloud-only features like `qmode` search or large result limits. All write operations always go to the Cloud API, since the local API doesn't support them. This is why `ZOTERO_API_KEY` is required even if you mainly use Zotero Desktop: it's your fallback and the only path for writes.
 
 ---
 
